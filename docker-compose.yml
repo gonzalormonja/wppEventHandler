@@ -15,7 +15,7 @@ services:
     networks:
       - wpp_bot_event_booking_network
     depends_on:
-      - user_databwpp_bot_event_booking_databasease
+      - wpp_bot_event_booking_database
   wpp_bot_event_booking_database:
     container_name: wpp_bot_event_booking_database
     image: 'postgres:13'
