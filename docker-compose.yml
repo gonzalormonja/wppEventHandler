@@ -1,0 +1,34 @@
+version: '3'
+
+services:
+  wpp_bot_event_booking:
+    container_name: wpp_bot_event_booking
+    build:
+      context: .
+      dockerfile: ./Dockerfile.local
+    volumes:
+      - ./:/usr/src/app
+    ports:
+      - '9229:9229'
+    env_file:
+      - .env
+    networks:
+      - wpp_bot_event_booking_network
+    depends_on:
+      - user_databwpp_bot_event_booking_databasease
+  wpp_bot_event_booking_database:
+    container_name: wpp_bot_event_booking_database
+    image: 'postgres:13'
+    ports:
+      - '5555:5432'
+    volumes:
+      - ./docker-data/pg:/var/lib/postgresql/data
+      - ./docker/provision/postgres/init:/docker-entrypoint-initdb.d
+    env_file:
+      - .env
+    networks:
+      - wpp_bot_event_booking_network
+
+networks:
+  wpp_bot_event_booking_network:
+    name: wpp_bot_event_booking_network
