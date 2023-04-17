@@ -8,6 +8,7 @@ import { DaySchedule } from 'src/entities/day-schedule.entity';
 import { UpdateCalendar } from './models/update-calendar.input';
 import { DateScheduleInput } from './models/date-schedule.input';
 import { DateSchedule } from 'src/entities/date-schedule.entity';
+import convertHourToMinute from 'src/utils/convert-hour-to-minute';
 
 @Injectable()
 export class CalendarService {
@@ -27,22 +28,17 @@ export class CalendarService {
   private parseDaySchedule(daySchedule: DayScheduleInput): DaySchedule {
     return {
       weekday: daySchedule.weekday,
-      from: this.getMinutes(daySchedule.from),
-      to: this.getMinutes(daySchedule.to),
+      from: convertHourToMinute(daySchedule.from),
+      to: convertHourToMinute(daySchedule.to),
     };
   }
 
   private parseDateSchedule(dateSchedule: DateScheduleInput): DateSchedule {
     return {
       date: dateSchedule.date,
-      from: this.getMinutes(dateSchedule.from),
-      to: this.getMinutes(dateSchedule.to),
+      from: convertHourToMinute(dateSchedule.from),
+      to: convertHourToMinute(dateSchedule.to),
     };
-  }
-
-  private getMinutes(time: string): number {
-    const [hour, minutes] = time.split(':');
-    return Number(minutes) + Number(hour) * 60;
   }
 
   public async update(
