@@ -37,3 +37,4 @@ lerna-debug.log*
 /session
 /docker-data
 /docker
+/.vscode
