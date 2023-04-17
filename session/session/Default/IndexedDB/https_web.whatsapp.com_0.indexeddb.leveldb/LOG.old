@@ -1,43 +1,11 @@
-2023/04/15-23:35:19.103 e873 Reusing MANIFEST /home/gonzalo/Documentos/wpp-bot-event-booking/session/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
-2023/04/15-23:35:19.103 e873 Recovering log #575
-2023/04/15-23:35:19.107 e873 Reusing old log /home/gonzalo/Documentos/wpp-bot-event-booking/session/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000575.log 
-2023/04/15-23:35:19.107 e873 Delete type=2 #562
-2023/04/15-23:35:19.108 e873 Delete type=2 #563
-2023/04/15-23:35:19.108 e873 Delete type=2 #565
-2023/04/15-23:35:19.108 e873 Delete type=2 #564
-2023/04/15-23:35:19.108 e873 Delete type=2 #566
-2023/04/15-23:35:19.130 e874 Level-0 table #581: started
-2023/04/15-23:35:19.133 e874 Level-0 table #581: 16507 bytes OK
-2023/04/15-23:35:19.136 e874 Delete type=0 #575
-2023/04/15-23:35:19.136 e874 Manual compaction at level-0 from '\x00*\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00+\x00\x00\x00' @ 0 : 0; will stop at (end)
-2023/04/15-23:35:19.136 e874 Manual compaction at level-1 from '\x00*\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00+\x00\x00\x00' @ 0 : 0; will stop at '\x00*.\x02\x01\x1e\x00W\x00A\x00S\x00h\x00o\x00u\x00l\x00d\x00C\x00h\x00e\x00c\x00k\x00C\x00o\x00n\x00t\x00a\x00c\x00t\x00S\x00y\x00n\x00c\x00S\x00t\x00a\x00t\x00u\x00s' @ 2660226 : 0
-2023/04/15-23:35:19.136 e874 Compacting 1@1 + 1@2 files
-2023/04/15-23:35:19.143 e874 Generated table #582@1: 434 keys, 38552 bytes
-2023/04/15-23:35:19.143 e874 Compacted 1@1 + 1@2 files => 38552 bytes
-2023/04/15-23:35:19.146 e874 compacted to: files[ 0 0 1 0 0 0 0 ]
-2023/04/15-23:35:19.147 e874 Delete type=2 #581
-2023/04/15-23:35:19.147 e874 Manual compaction at level-1 from '\x00*.\x02\x01\x1e\x00W\x00A\x00S\x00h\x00o\x00u\x00l\x00d\x00C\x00h\x00e\x00c\x00k\x00C\x00o\x00n\x00t\x00a\x00c\x00t\x00S\x00y\x00n\x00c\x00S\x00t\x00a\x00t\x00u\x00s' @ 2660226 : 0 .. '\x00+\x00\x00\x00' @ 0 : 0; will stop at (end)
-2023/04/15-23:35:19.149 e873 Level-0 table #584: started
-2023/04/15-23:35:19.151 e873 Level-0 table #584: 1217 bytes OK
-2023/04/15-23:35:19.153 e873 Delete type=2 #578
-2023/04/15-23:35:19.153 e873 Delete type=0 #580
-2023/04/15-23:35:19.154 e873 Manual compaction at level-0 from '\x00)\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00*\x00\x00\x00' @ 0 : 0; will stop at (end)
-2023/04/15-23:35:19.154 e873 Manual compaction at level-1 from '\x00)\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00*\x00\x00\x00' @ 0 : 0; will stop at '\x00)\x05\x02\x03\x00\x00\x00\x00\x00\x00\xf0?' @ 2660322 : 0
-2023/04/15-23:35:19.154 e873 Compacting 1@1 + 1@2 files
-2023/04/15-23:35:19.160 e873 Generated table #585@1: 347 keys, 36586 bytes
-2023/04/15-23:35:19.160 e873 Compacted 1@1 + 1@2 files => 36586 bytes
-2023/04/15-23:35:19.162 e873 compacted to: files[ 0 0 1 0 0 0 0 ]
-2023/04/15-23:35:19.163 e873 Delete type=2 #584
-2023/04/15-23:35:19.163 e873 Manual compaction at level-1 from '\x00)\x05\x02\x03\x00\x00\x00\x00\x00\x00\xf0?' @ 2660322 : 0 .. '\x00*\x00\x00\x00' @ 0 : 0; will stop at (end)
-2023/04/15-23:35:19.173 e874 Level-0 table #587: started
-2023/04/15-23:35:19.177 e874 Level-0 table #587: 34896 bytes OK
-2023/04/15-23:35:19.180 e874 Delete type=2 #582
-2023/04/15-23:35:19.180 e874 Delete type=0 #583
-2023/04/15-23:35:19.180 e874 Manual compaction at level-0 from '\x00 \x00\x00\x00' @ 72057594037927935 : 1 .. '\x00!\x00\x00\x00' @ 0 : 0; will stop at (end)
-2023/04/15-23:35:19.180 e874 Manual compaction at level-1 from '\x00 \x00\x00\x00' @ 72057594037927935 : 1 .. '\x00!\x00\x00\x00' @ 0 : 0; will stop at '\x00 \x07\x02\x01\x05\x00t\x00o\x00k\x00e\x00n' @ 2660623 : 0
-2023/04/15-23:35:19.180 e874 Compacting 1@1 + 1@2 files
-2023/04/15-23:35:19.187 e874 Generated table #588@1: 60 keys, 1178 bytes
-2023/04/15-23:35:19.187 e874 Compacted 1@1 + 1@2 files => 1178 bytes
-2023/04/15-23:35:19.190 e874 compacted to: files[ 0 0 1 0 0 0 0 ]
-2023/04/15-23:35:19.190 e874 Delete type=2 #587
-2023/04/15-23:35:19.190 e874 Manual compaction at level-1 from '\x00 \x07\x02\x01\x05\x00t\x00o\x00k\x00e\x00n' @ 2660623 : 0 .. '\x00!\x00\x00\x00' @ 0 : 0; will stop at (end)
+2023/04/16-18:40:37.839 8d09 Reusing MANIFEST /home/gonzalo/Documentos/wpp-bot-event-booking/session/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2023/04/16-18:40:37.840 8d09 Recovering log #586
+2023/04/16-18:40:37.884 8d09 Reusing old log /home/gonzalo/Documentos/wpp-bot-event-booking/session/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000586.log 
+2023/04/16-18:40:37.884 8d09 Delete type=2 #585
+2023/04/16-18:40:37.908 8d58 Manual compaction at level-0 from '\x00.\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00/\x00\x00\x00' @ 0 : 0; will stop at (end)
+2023/04/16-18:40:37.915 8d58 Level-0 table #591: started
+2023/04/16-18:40:37.927 8d58 Level-0 table #591: 77909 bytes OK
+2023/04/16-18:40:37.934 8d58 Delete type=0 #586
+2023/04/16-18:40:37.934 8d58 Manual compaction at level-0 from '\x00-\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00.\x00\x00\x00' @ 0 : 0; will stop at (end)
+2023/04/16-18:40:37.936 8d09 Manual compaction at level-0 from '\x00,\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00-\x00\x00\x00' @ 0 : 0; will stop at (end)
+2023/04/16-18:40:37.938 8d09 Manual compaction at level-0 from '\x00+\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00,\x00\x00\x00' @ 0 : 0; will stop at (end)

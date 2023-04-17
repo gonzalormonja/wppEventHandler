@@ -6,6 +6,7 @@ import { EventModule } from './event/event.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { UserModule } from './user/user.module';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { WppHandlerModule } from './wpp-handler/wpp-handler.module';
 import options from './config/orm';
 
 @Module({
@@ -15,6 +16,7 @@ import options from './config/orm';
     CalendarModule,
     UserModule,
     TypeOrmModule.forRoot(options as TypeOrmModuleOptions),
+    WppHandlerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
