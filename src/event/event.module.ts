@@ -3,6 +3,7 @@ import { EventService } from './event.service';
 import { Event } from 'src/entities/event.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CalendarModule } from 'src/calendar/calendar.module';
+import { EventController } from './event.controller';
 
 @Module({
   imports: [
@@ -10,5 +11,6 @@ import { CalendarModule } from 'src/calendar/calendar.module';
     CalendarModule,
   ],
   providers: [EventService],
+  controllers: [EventController],
 })
 export class EventModule {}
