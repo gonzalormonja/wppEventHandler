@@ -1,7 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Calendar } from 'src/entities/calendar.entity';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { CreateCalendar } from './models/create-calendar.input';
 import { DayScheduleInput } from './models/day-schedule.input';
 import { DaySchedule } from 'src/entities/day-schedule.entity';
@@ -9,6 +13,7 @@ import { UpdateCalendar } from './models/update-calendar.input';
 import { DateScheduleInput } from './models/date-schedule.input';
 import { DateSchedule } from 'src/entities/date-schedule.entity';
 import convertHourToMinute from 'src/utils/convert-hour-to-minute';
+import * as uuid from 'uuid';
 
 @Injectable()
 export class CalendarService {
@@ -18,15 +23,17 @@ export class CalendarService {
   ) {}
 
   public async create({ daySchedules, name }: CreateCalendar) {
-    const calendar = this.calendarModel.create({ name });
+    const calendar = this.calendarModel.create({ id: uuid.v4(), name });
     calendar.daySchedules = daySchedules.map((day) =>
       this.parseDaySchedule(day),
     );
+    await this.validate(calendar);
     return this.calendarModel.save(calendar);
   }
 
   private parseDaySchedule(daySchedule: DayScheduleInput): DaySchedule {
     return {
+      id: uuid.v4(),
       weekday: daySchedule.weekday,
       from: convertHourToMinute(daySchedule.from),
       to: convertHourToMinute(daySchedule.to),
@@ -35,6 +42,7 @@ export class CalendarService {
 
   private parseDateSchedule(dateSchedule: DateScheduleInput): DateSchedule {
     return {
+      id: uuid.v4(),
       date: dateSchedule.date,
       from: convertHourToMinute(dateSchedule.from),
       to: convertHourToMinute(dateSchedule.to),
@@ -52,6 +60,7 @@ export class CalendarService {
       calendar.daySchedules = daySchedules.map((day) =>
         this.parseDaySchedule(day),
       );
+    await this.validate(calendar);
     return this.calendarModel.save(calendar);
   }
 
@@ -87,6 +96,11 @@ export class CalendarService {
   public async get(): Promise<[Calendar[], number]> {
     return this.calendarModel.findAndCount({
       relations: ['dateSchedules', 'daySchedules'],
+      order: {
+        daySchedules: {
+          from: 'ASC',
+        },
+      },
     });
   }
 
@@ -95,5 +109,18 @@ export class CalendarService {
       relations: ['dateSchedules', 'daySchedules'],
       where: { id },
     });
+  }
+
+  private async validate(calendar: Calendar): Promise<boolean> {
+    const calendarExist = await this.calendarModel.findOne({
+      where: {
+        id: Not(calendar.id),
+        name: calendar.name,
+      },
+    });
+    if (calendarExist)
+      throw new BadRequestException('error.CALENDAR_ALREADY_EXIST');
+
+    return true;
   }
 }

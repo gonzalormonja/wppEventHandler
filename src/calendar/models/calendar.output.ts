@@ -6,6 +6,9 @@ import { DayScheduleOutput } from './day-schedule.output';
 export class CalendarOutput {
   @Expose()
   @ApiProperty()
+  id: string;
+  @Expose()
+  @ApiProperty()
   name: string;
   @Expose()
   @ApiProperty({ type: [DateScheduleOutput] })

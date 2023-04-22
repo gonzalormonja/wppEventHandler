@@ -8,8 +8,10 @@ import { User } from './user.entity';
 export class Event extends BaseEntity {
   @Column({ type: 'varchar', length: 255, nullable: false })
   description: string;
-  @Column({ type: 'date', nullable: false })
-  dateTime: Date;
+  @Column({ type: 'timestamp', nullable: false })
+  startDateTime: Date;
+  @Column({ type: 'timestamp', nullable: false })
+  endDateTime: Date;
   @Column({ type: 'enum', enum: Status, default: Status.Pending })
   status: Status;
   @ManyToOne(() => Calendar)

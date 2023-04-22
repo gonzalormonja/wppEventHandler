@@ -1,16 +1,24 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsDate, IsString } from 'class-validator';
+import { IsDate, IsString, IsUUID } from 'class-validator';
+import * as uuid from 'uuid';
 
-export class CreateEvent {
+export class CreateEventInput {
   @ApiProperty()
   @IsString()
   description: string;
+  @ApiProperty({ type: String })
+  @IsUUID('4')
+  userId: uuid;
   @ApiProperty()
   @Transform(({ value }) => (value ? new Date(value) : null))
   @IsDate()
-  dateTime: Date;
+  startDateTime: Date;
   @ApiProperty()
-  @IsString()
-  calendarId: string;
+  @Transform(({ value }) => (value ? new Date(value) : null))
+  @IsDate()
+  endDateTime: Date;
+  @ApiProperty({ type: String })
+  @IsUUID('4')
+  calendarId: uuid;
 }

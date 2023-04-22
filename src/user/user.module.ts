@@ -6,5 +6,6 @@ import { User } from 'src/entities/user.entity';
 @Module({
   imports: [forwardRef(() => TypeOrmModule.forFeature([User]))],
   providers: [UserService],
+  exports: [UserService],
 })
 export class UserModule {}

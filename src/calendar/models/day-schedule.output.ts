@@ -1,17 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Expose, Transform } from 'class-transformer';
-import convertMinuteToHour from 'src/utils/convert-minute-to-hour';
+import { Expose } from 'class-transformer';
+import { ScheduleOutput } from 'src/models/schedule.output';
 
-export class DayScheduleOutput {
+export class DayScheduleOutput extends ScheduleOutput {
   @Expose()
   @ApiProperty()
   weekday: number;
-  @Expose()
-  @ApiProperty({ type: String })
-  @Transform(({ value }) => convertMinuteToHour(value))
-  from: number;
-  @Expose()
-  @ApiProperty({ type: String })
-  @Transform(({ value }) => convertMinuteToHour(value))
-  to: number;
 }
