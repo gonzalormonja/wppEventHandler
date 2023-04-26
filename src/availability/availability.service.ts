@@ -33,7 +33,11 @@ export class AvailabilityService {
 
     let schedules = [...dateSchedules, ...daySchedules];
 
-    schedules = await this.applyEvents(calendarId, date, schedules);
+    schedules = await this.removeBusyEventSchedules(
+      calendarId,
+      date,
+      schedules,
+    );
 
     schedules = this.groupSchedules(schedules);
 
@@ -52,7 +56,7 @@ export class AvailabilityService {
     return schedules.sort((a, b) => (a.from < b.from ? -1 : 1));
   }
 
-  private async applyEvents(
+  private async removeBusyEventSchedules(
     calendarId: uuid,
     date: DateTime,
     schedules: ScheduleOutput[],

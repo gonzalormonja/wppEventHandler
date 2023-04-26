@@ -36,7 +36,7 @@ import { GetEventModule } from './get-event/get-event.module';
     UserModule,
     TypeOrmModule.forRoot(options as TypeOrmModuleOptions),
     GetEventModule,
-    // WppHandlerModule,
+    WppHandlerModule,
   ],
   controllers: [AppController],
   providers: [
