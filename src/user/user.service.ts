@@ -18,4 +18,8 @@ export class UserService {
   public async getOne(id: string): Promise<User> {
     return this.userModel.findOne({ where: { id } });
   }
+
+  public async getOneBy(column: string, value: string): Promise<User> {
+    return this.userModel.findOne({ where: { [column]: value } });
+  }
 }

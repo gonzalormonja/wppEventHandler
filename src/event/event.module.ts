@@ -18,5 +18,6 @@ import { GetEventModule } from 'src/get-event/get-event.module';
   ],
   providers: [EventService],
   controllers: [EventController],
+  exports: [EventService],
 })
 export class EventModule {}

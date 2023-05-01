@@ -1,8 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { DateTime } from 'luxon';
+import { AvailabilityService } from 'src/availability/availability.service';
+import { CalendarService } from 'src/calendar/calendar.service';
+import { EventService } from 'src/event/event.service';
+import { UserService } from 'src/user/user.service';
+import convertMinuteToHour from 'src/utils/convert-minute-to-hour';
 
 interface Answer {
   messageId: string;
-  message: string;
   keyword: string[];
   nested?: Answer[];
 }
@@ -10,28 +15,19 @@ interface Answer {
 const answers: Answer[] = [
   {
     messageId: 'welcome_answer',
-    message: `Buenos dias! ¿En que podemos ayudarte?\n
-    1_ Ver disponibilidad\n
-    2_ Reservar\n
-    1_ Cancelar reserva`,
     keyword: [],
     nested: [
       {
         keyword: ['1'],
         messageId: 'get_availability_calendar',
-        message:
-          '¿De cual calendario te interesaria conocer la disponibilidad?\n',
-        //add calendars dynamically and
         nested: [
           {
             keyword: [],
             messageId: 'get_availability_date',
-            message: '¿Para que fecha?\n',
             nested: [
               {
                 keyword: [],
                 messageId: 'get_availability_response',
-                message: 'La disponibilidad es\n',
               },
             ],
           },
@@ -40,23 +36,18 @@ const answers: Answer[] = [
       {
         keyword: ['2'],
         messageId: 'add_event_calendar',
-        message: '¿En cual calendario te gustaria reservar?\n',
-        //add calendars dynamically and
         nested: [
           {
             keyword: [],
             messageId: 'add_event_date',
-            message: '¿Para que fecha?\n',
             nested: [
               {
                 keyword: [],
                 messageId: 'add_event_time',
-                message: '¿Desde que horario a que horario?\n',
                 nested: [
                   {
                     keyword: [],
                     messageId: 'add_event_response',
-                    message: 'Evento agregado.\n',
                   },
                 ],
               },
@@ -67,26 +58,18 @@ const answers: Answer[] = [
       {
         keyword: ['3'],
         messageId: 'remove_event',
-        message: '¿Cual de las siguientes reservas te gustaria cancelar?\n',
-        //add events dynamically and
         nested: [
           {
             keyword: [],
             messageId: 'remove_event_confirm',
-            message:
-              '¿Confirmas que deseas cancelar la reserva para del dia xxx desde las xxx hasta las xxx?\n',
             nested: [
               {
                 keyword: ['si'],
                 messageId: 'remove_event_yes',
-                message: 'Reserva cancelada\n',
-                //add event
               },
               {
                 keyword: ['no'],
                 messageId: 'remove_event_yes',
-                message: 'Entonces no cancelo la reserva\n',
-                //add event
               },
             ],
           },
@@ -100,74 +83,206 @@ interface MemoryStatus {
   messageIds: string[];
   buffer: any;
 }
-const memoryStatus: MemoryStatus[] = [];
+let memoryStatus: MemoryStatus[] = [];
 
 @Injectable()
 export class WppHandlerService {
-  private processMessage(
+  constructor(
+    private readonly availabilityService: AvailabilityService,
+    private readonly calendarService: CalendarService,
+    private readonly eventServixe: EventService,
+    private readonly userService: UserService,
+  ) {}
+
+  private async getCalendars(): Promise<string> {
+    const [calendars] = await this.calendarService.get();
+    return calendars
+      .reduce((acc, el, index) => `${acc}\n${index + 1}_ ${el.name}`, '')
+      .slice(1);
+  }
+
+  private async getAvailability(
+    calendarId: string,
+    dateString: string,
+  ): Promise<string> {
+    const date = DateTime.fromFormat(dateString, 'dd-MM-yyyy');
+    const { schedules } = await this.availabilityService.getAvailability(
+      calendarId,
+      date,
+    );
+    return schedules
+      .reduce(
+        (acc, el) =>
+          `${acc}\nDesde: ${convertMinuteToHour(
+            el.from,
+          )} Hasta: ${convertMinuteToHour(el.to)}`,
+        '',
+      )
+      .slice(1);
+  }
+
+  private resetConversation(wppId): void {
+    memoryStatus = memoryStatus.filter(({ wppId: _wppId }) => _wppId != wppId);
+  }
+
+  private async addEvent(
+    description: string,
+    calendarId: string,
+    date: string,
+    time: string,
+    userId: string,
+  ): Promise<boolean> {
+    const [from, to] = time.split(' a ');
+    const startDateTime = DateTime.fromFormat(
+      `${date} ${from}`,
+      'dd-MM-yyyy HH:mm',
+    );
+    const endDateTime = DateTime.fromFormat(
+      `${date} ${to}`,
+      'dd-MM-yyyy HH:mm',
+    );
+
+    const event = await this.eventServixe.create({
+      calendarId,
+      description,
+      startDateTime: startDateTime.toJSDate(),
+      endDateTime: endDateTime.toJSDate(),
+      userId,
+    });
+    return !!event;
+  }
+
+  private async processMessage(
     userMessage: string,
     answer: Answer,
     wppId: string,
-  ): string {
+  ): Promise<string> {
     const answerFunctions = {
       welcome_answer: (answer: Answer) => {
-        return { message: answer.message };
+        return {
+          message: `Buenos dias! ¿En que podemos ayudarte?\n
+        1_ Ver disponibilidad\n
+        2_ Reservar\n
+        1_ Cancelar reserva`,
+        };
       },
-      get_availability_calendar: (
+      get_availability_calendar: async (
         answer: Answer,
         message: string,
         buffer: any,
       ) => {
+        const calendarString = await this.getCalendars();
         return {
-          message: `${answer.message}1_ Calendario de pedro\n2_ Calendario de juan`,
+          message: `¿De cual calendario te interesaria conocer la disponibilidad?\n${calendarString}`,
           buffer: {},
         };
       },
-      get_availability_date: (answer: Answer, message: string, buffer: any) => {
-        //save in buffer calendarName =message
-        return { message: answer.message, buffer: { calendarName: message } };
-      },
-      get_availability_response: (
+      get_availability_date: async (
         answer: Answer,
         message: string,
         buffer: any,
       ) => {
-        //return availability for calendarName in buffer and date = message
+        const [calendars] = await this.calendarService.get();
+        const calendar = calendars[parseInt(message) - 1];
+
+        //todo if doesn't understand calendar question against
+        if (!calendar)
+          return {
+            message: 'Calendario no encontrado',
+            resetConversation: true,
+          };
+
         return {
-          message: `${answer.message}La disponibilidad para la fecha ${message} del calendario ${buffer.calendarName} es`,
+          message: '¿Para que fecha?',
+          buffer: {
+            calendarId: calendar.id,
+            calendarName: calendar.name,
+          },
         };
       },
-      add_event_calendar: (answer: Answer, message: string, buffer: any) => {
+      get_availability_response: async (
+        answer: Answer,
+        message: string,
+        buffer: any,
+      ) => {
+        const availabilityString = await this.getAvailability(
+          buffer.calendarId,
+          message,
+        );
         return {
-          message: `${answer.message}1_ Calendario de pedro\n2_ Calendario de juan`,
+          message: `La disponibilidad para la fecha ${message} del calendario ${buffer.calendarName} es\n${availabilityString}`,
+          resetConversation: true,
+        };
+      },
+      add_event_calendar: async (
+        answer: Answer,
+        message: string,
+        buffer: any,
+      ) => {
+        const calendarString = await this.getCalendars();
+        return {
+          message: `¿En cual calendario te gustaria reservar?\n${calendarString}`,
           buffer: {},
         };
       },
-      add_event_date: (answer: Answer, message: string, buffer: any) => {
-        return { message: answer.message, buffer: { calendarName: message } };
-      },
-      add_event_time: (answer: Answer, message: string, buffer: any) => {
-        return { message: answer.message, buffer: { date: message } };
-      },
-      add_event_response: (answer: Answer, message: string, buffer: any) => {
-        //create event for calendarName, date in buffer and time = message
+      add_event_date: async (answer: Answer, message: string, buffer: any) => {
+        const [calendars] = await this.calendarService.get();
+        const calendar = calendars[parseInt(message) - 1];
+        //todo if doesn't understand calendar question against
+        if (!calendar)
+          return {
+            message: 'Calendario no encontrado',
+            resetConversation: true,
+          };
+
         return {
-          message: `${answer.message}La disponibilidad para la fecha ${message} del calendario ${buffer.calendarName} es`,
+          message: '¿Para que fecha?',
+          buffer: {
+            calendarId: calendar.id,
+            calendarName: calendar.name,
+          },
+        };
+      },
+      add_event_time: async (answer: Answer, message: string, buffer: any) => {
+        return {
+          message: `¿Desde que horario a que horario?\n`,
+          buffer: { date: message },
+        };
+      },
+      add_event_response: async (
+        answer: Answer,
+        message: string,
+        buffer: any,
+        wppId: string,
+      ) => {
+        const user = await this.userService.getOneBy('wppId', wppId);
+        const isCreated = await this.addEvent(
+          'New event',
+          buffer.calendarId,
+          buffer.date,
+          message,
+          user.id,
+        );
+        return {
+          message: `Evento agregado.\n`,
+          resetConversation: true,
         };
       },
     };
     const memoryIndex = memoryStatus.findIndex((m) => m.wppId == wppId);
     const memory = memoryStatus[memoryIndex];
-    const { message, buffer } = answerFunctions[answer.messageId](
-      answer,
-      userMessage,
-      memory.buffer,
-    );
-    memoryStatus.splice(memoryIndex, 1, {
-      wppId,
-      messageIds: [...memory.messageIds, answer.messageId],
-      buffer: { ...memory.buffer, ...buffer },
-    });
+    const { message, buffer, resetConversation } = await answerFunctions[
+      answer.messageId
+    ](answer, userMessage, memory.buffer, wppId);
+    if (resetConversation) {
+      this.resetConversation(wppId);
+    } else {
+      memoryStatus.splice(memoryIndex, 1, {
+        wppId,
+        messageIds: [...memory.messageIds, answer.messageId],
+        buffer: { ...memory.buffer, ...buffer },
+      });
+    }
     return message;
   }
 

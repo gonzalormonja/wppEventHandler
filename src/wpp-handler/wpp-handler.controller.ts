@@ -9,19 +9,23 @@ const SESSION_FILE_PATH = '../../session';
 export class WppHandlerController {
   client: Client;
   constructor(private readonly wppHandlerService: WppHandlerService) {
-    // this.client = new Client({
-    //   authStrategy: new LocalAuth({ dataPath: SESSION_FILE_PATH }),
-    //   puppeteer: {
-    //     args: ['--no-sandbox'],
-    //   },
-    // });
-    // this.client.on('qr', (qr) => qrcode.generate(qr, { small: true }));
-    // this.client.on('authenticated', () => console.log('Authenticated'));
-    // this.client.on('auth_failure', () => console.log('auth_failure'));
-    // this.client.on('message', (msg) => {
-    //   this.client.sendMessage(msg.from, 'Automatic message');
-    // });
-    // this.client.initialize();
+    this.client = new Client({
+      authStrategy: new LocalAuth({ dataPath: SESSION_FILE_PATH }),
+      puppeteer: {
+        args: ['--no-sandbox'],
+      },
+    });
+    this.client.on('qr', (qr) => qrcode.generate(qr, { small: true }));
+    this.client.on('authenticated', () => console.log('Authenticated'));
+    this.client.on('auth_failure', () => console.log('auth_failure'));
+    this.client.on('message', async (msg) => {
+      const response = await this.wppHandlerService.messageHandler(
+        msg.body,
+        '1',
+      );
+      this.client.sendMessage(msg.from, response);
+    });
+    this.client.initialize();
   }
 
   @Get(':message')

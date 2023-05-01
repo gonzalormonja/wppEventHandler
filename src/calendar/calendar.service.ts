@@ -24,9 +24,12 @@ export class CalendarService {
 
   public async create({ daySchedules, name }: CreateCalendar) {
     const calendar = this.calendarModel.create({ id: uuid.v4(), name });
-    calendar.daySchedules = daySchedules.map((day) =>
-      this.parseDaySchedule(day),
-    );
+
+    if (daySchedules)
+      calendar.daySchedules = daySchedules.map((day) =>
+        this.parseDaySchedule(day),
+      );
+
     await this.validate(calendar);
     return this.calendarModel.save(calendar);
   }
@@ -108,6 +111,13 @@ export class CalendarService {
     return this.calendarModel.findOne({
       relations: ['dateSchedules', 'daySchedules'],
       where: { id },
+    });
+  }
+
+  public async getOneBy(column: string, value: string): Promise<Calendar> {
+    return this.calendarModel.findOne({
+      relations: ['dateSchedules', 'daySchedules'],
+      where: { [column]: value },
     });
   }
 
