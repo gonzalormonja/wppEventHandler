@@ -52,7 +52,13 @@ const answers: Answer[] = [
                 keyword: [],
                 messageId: 'add_event_time',
                 message: '¿Desde que horario a que horario?\n',
-                //add event
+                nested: [
+                  {
+                    keyword: [],
+                    messageId: 'add_event_response',
+                    message: 'Evento agregado.\n',
+                  },
+                ],
               },
             ],
           },
@@ -113,13 +119,13 @@ export class WppHandlerService {
         buffer: any,
       ) => {
         return {
-          message: `1_ Calendario de pedro\n2_ Calendario de juan`,
+          message: `${answer.message}1_ Calendario de pedro\n2_ Calendario de juan`,
           buffer: {},
         };
       },
       get_availability_date: (answer: Answer, message: string, buffer: any) => {
         //save in buffer calendarName =message
-        return { message: '', buffer: { calendarName: message } };
+        return { message: answer.message, buffer: { calendarName: message } };
       },
       get_availability_response: (
         answer: Answer,
@@ -128,7 +134,25 @@ export class WppHandlerService {
       ) => {
         //return availability for calendarName in buffer and date = message
         return {
-          message: `La disponibilidad para la fecha ${message} del calendario ${buffer.calendarName} es`,
+          message: `${answer.message}La disponibilidad para la fecha ${message} del calendario ${buffer.calendarName} es`,
+        };
+      },
+      add_event_calendar: (answer: Answer, message: string, buffer: any) => {
+        return {
+          message: `${answer.message}1_ Calendario de pedro\n2_ Calendario de juan`,
+          buffer: {},
+        };
+      },
+      add_event_date: (answer: Answer, message: string, buffer: any) => {
+        return { message: answer.message, buffer: { calendarName: message } };
+      },
+      add_event_time: (answer: Answer, message: string, buffer: any) => {
+        return { message: answer.message, buffer: { date: message } };
+      },
+      add_event_response: (answer: Answer, message: string, buffer: any) => {
+        //create event for calendarName, date in buffer and time = message
+        return {
+          message: `${answer.message}La disponibilidad para la fecha ${message} del calendario ${buffer.calendarName} es`,
         };
       },
     };
