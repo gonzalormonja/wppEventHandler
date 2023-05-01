@@ -38,3 +38,5 @@ lerna-debug.log*
 /docker-data
 /docker
 /.vscode
+
+.env
