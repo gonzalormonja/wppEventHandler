@@ -14,8 +14,9 @@ interface AnswerFunction {
 }
 interface AnswerFunctionOutput {
   buffer?: any;
-  response: string;
+  response?: string;
   resetConversation?: boolean;
+  nextMessageId?: string;
 }
 interface Answer {
   messageId: string;
@@ -120,7 +121,7 @@ export class WppHandlerService {
       .reduce((acc, el, index) => `${acc}\n${index + 1}_ ${el.name}`, '')
       .slice(1);
     return {
-      response: `¿En cual calendario te gustaria reservar?\n${calendarString}`,
+      response: `¿En cual calendario te gustaria reservar?\n${calendarString}\nSi queres cancelar escribi *cancelar*`,
     };
   }
 
@@ -130,7 +131,11 @@ export class WppHandlerService {
         messageId: 'reset',
         keyword: ['reset', 'resetear', 'reiniciar'],
         function: () => {
-          return { ...this.welcomeAnswer(), resetConversation: true };
+          return {
+            response: 'Reiniciando',
+            resetConversation: true,
+            nextMessageId: 'welcome_answer',
+          };
         },
       },
       {
@@ -149,14 +154,21 @@ export class WppHandlerService {
                 keyword: [],
                 messageId: 'get_availability_date',
                 function: async ({ message }) => {
+                  if (message == 'cancelar') {
+                    return {
+                      resetConversation: true,
+                      nextMessageId: 'welcome_answer',
+                    };
+                  }
                   const [calendars] = await this.calendarService.get();
                   const calendar = calendars[parseInt(message) - 1];
 
                   //todo if doesn't understand calendar question against
                   if (!calendar) {
                     return {
-                      response: 'Calendario no encontrado',
                       resetConversation: true,
+                      response: 'Calendario no encontrado',
+                      nextMessageId: 'welcome_answer',
                     };
                   }
 
@@ -179,6 +191,7 @@ export class WppHandlerService {
                       );
                       return {
                         response: `La disponibilidad para la fecha ${message} del calendario ${buffer.calendarName} es\n${availabilityString}`,
+                        nextMessageId: 'welcome_answer',
                         resetConversation: true,
                       };
                     },
@@ -202,6 +215,7 @@ export class WppHandlerService {
                   if (!calendar) {
                     return {
                       response: 'Calendario no encontrado',
+                      nextMessageId: 'welcome_answer',
                       resetConversation: true,
                     };
                   }
@@ -239,14 +253,11 @@ export class WppHandlerService {
                             message,
                             user.id,
                           );
-                          if (!isCreated) {
-                            return {
-                              response: 'Hubo un error al crear el evento.',
-                              resetConversation: true,
-                            };
-                          }
                           return {
-                            response: `Evento agregado.\n`,
+                            response: !isCreated
+                              ? 'Hubo un error al crear el evento.'
+                              : `Evento agregado.\n`,
+                            nextMessageId: 'welcome_answer',
                             resetConversation: true,
                           };
                         },
@@ -286,7 +297,37 @@ export class WppHandlerService {
     ];
   }
 
-  public async messageHandler(message: string, wppId: string): Promise<string> {
+  private async processResponse(
+    response: AnswerFunctionOutput,
+    wppId: string,
+    messageId: string,
+  ): Promise<string[]> {
+    let responses: string[] = [];
+    if (response) {
+      if (!response.resetConversation) {
+        this.updateMemory(wppId, messageId, response.buffer);
+      } else {
+        this.resetConversation(wppId);
+      }
+      responses.push(response.response);
+      if (response.nextMessageId) {
+        const nextResponses = await this.messageHandler(
+          '',
+          wppId,
+          response.nextMessageId,
+        );
+        responses = [...responses, ...nextResponses];
+      }
+      return responses.filter((r) => !!r);
+    }
+    return ['Lo siento no pude entenderte'];
+  }
+
+  public async messageHandler(
+    message: string,
+    wppId: string,
+    messageId?: string,
+  ): Promise<string[]> {
     let userMemoryStatus = memoryStatus.find((m) => m.wppId == wppId);
     let possibleAnswers = this.getAnswers();
     if (!userMemoryStatus) {
@@ -306,8 +347,9 @@ export class WppHandlerService {
     let matchAnswer: Answer = null;
     let alternativeAnswer: Answer = null;
     if (possibleAnswers) {
-      matchAnswer = possibleAnswers.find((answer) =>
-        answer.keyword.includes(message),
+      matchAnswer = possibleAnswers.find(
+        (answer) =>
+          answer.keyword.includes(message) || answer.messageId == messageId,
       );
       alternativeAnswer = possibleAnswers.find(
         (answer) => answer.keyword.length == 0,
@@ -331,18 +373,10 @@ export class WppHandlerService {
         wppId,
       });
     }
-    if (response) {
-      if (!response.resetConversation) {
-        this.updateMemory(
-          wppId,
-          matchAnswer ? matchAnswer.messageId : alternativeAnswer.messageId,
-          response.buffer,
-        );
-      } else {
-        this.resetConversation(wppId);
-      }
-      return response.response;
-    }
-    return 'Lo siento no pude entenderte';
+    return this.processResponse(
+      response,
+      wppId,
+      matchAnswer ? matchAnswer.messageId : alternativeAnswer.messageId,
+    );
   }
 }

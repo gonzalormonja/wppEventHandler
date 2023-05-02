@@ -31,7 +31,7 @@ export class WppHandlerController {
   @Get(':message')
   public async messageHandler(
     @Param('message') message: string,
-  ): Promise<string> {
+  ): Promise<string[]> {
     return this.wppHandlerService.messageHandler(message, '1');
   }
 }
