@@ -6,78 +6,29 @@ import { EventService } from 'src/event/event.service';
 import { UserService } from 'src/user/user.service';
 import convertMinuteToHour from 'src/utils/convert-minute-to-hour';
 
+interface AnswerFunction {
+  message: string;
+  buffer: any;
+  wppId: string;
+  messageId: string;
+}
+interface AnswerFunctionOutput {
+  buffer?: any;
+  response: string;
+  resetConversation?: boolean;
+}
 interface Answer {
   messageId: string;
   keyword: string[];
   nested?: Answer[];
+  fallback?: any; //use this when user send wrong response
+  function: ({
+    message,
+    buffer,
+    wppId,
+  }: AnswerFunction) => AnswerFunctionOutput | Promise<AnswerFunctionOutput>;
 }
 
-const answers: Answer[] = [
-  {
-    messageId: 'welcome_answer',
-    keyword: [],
-    nested: [
-      {
-        keyword: ['1'],
-        messageId: 'get_availability_calendar',
-        nested: [
-          {
-            keyword: [],
-            messageId: 'get_availability_date',
-            nested: [
-              {
-                keyword: [],
-                messageId: 'get_availability_response',
-              },
-            ],
-          },
-        ],
-      },
-      {
-        keyword: ['2'],
-        messageId: 'add_event_calendar',
-        nested: [
-          {
-            keyword: [],
-            messageId: 'add_event_date',
-            nested: [
-              {
-                keyword: [],
-                messageId: 'add_event_time',
-                nested: [
-                  {
-                    keyword: [],
-                    messageId: 'add_event_response',
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-      {
-        keyword: ['3'],
-        messageId: 'remove_event',
-        nested: [
-          {
-            keyword: [],
-            messageId: 'remove_event_confirm',
-            nested: [
-              {
-                keyword: ['si'],
-                messageId: 'remove_event_yes',
-              },
-              {
-                keyword: ['no'],
-                messageId: 'remove_event_yes',
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-];
 interface MemoryStatus {
   wppId: string;
   messageIds: string[];
@@ -93,14 +44,6 @@ export class WppHandlerService {
     private readonly eventServixe: EventService,
     private readonly userService: UserService,
   ) {}
-
-  private async getCalendars(): Promise<string> {
-    const [calendars] = await this.calendarService.get();
-    return calendars
-      .reduce((acc, el, index) => `${acc}\n${index + 1}_ ${el.name}`, '')
-      .slice(1);
-  }
-
   private async getAvailability(
     calendarId: string,
     dateString: string,
@@ -152,143 +95,200 @@ export class WppHandlerService {
     return !!event;
   }
 
-  private async processMessage(
-    userMessage: string,
-    answer: Answer,
-    wppId: string,
-  ): Promise<string> {
-    const answerFunctions = {
-      welcome_answer: (answer: Answer) => {
-        return {
-          message: `Buenos dias! ¿En que podemos ayudarte?\n
-        1_ Ver disponibilidad\n
-        2_ Reservar\n
-        1_ Cancelar reserva`,
-        };
-      },
-      get_availability_calendar: async (
-        answer: Answer,
-        message: string,
-        buffer: any,
-      ) => {
-        const calendarString = await this.getCalendars();
-        return {
-          message: `¿De cual calendario te interesaria conocer la disponibilidad?\n${calendarString}`,
-          buffer: {},
-        };
-      },
-      get_availability_date: async (
-        answer: Answer,
-        message: string,
-        buffer: any,
-      ) => {
-        const [calendars] = await this.calendarService.get();
-        const calendar = calendars[parseInt(message) - 1];
-
-        //todo if doesn't understand calendar question against
-        if (!calendar)
-          return {
-            message: 'Calendario no encontrado',
-            resetConversation: true,
-          };
-
-        return {
-          message: '¿Para que fecha?',
-          buffer: {
-            calendarId: calendar.id,
-            calendarName: calendar.name,
-          },
-        };
-      },
-      get_availability_response: async (
-        answer: Answer,
-        message: string,
-        buffer: any,
-      ) => {
-        const availabilityString = await this.getAvailability(
-          buffer.calendarId,
-          message,
-        );
-        return {
-          message: `La disponibilidad para la fecha ${message} del calendario ${buffer.calendarName} es\n${availabilityString}`,
-          resetConversation: true,
-        };
-      },
-      add_event_calendar: async (
-        answer: Answer,
-        message: string,
-        buffer: any,
-      ) => {
-        const calendarString = await this.getCalendars();
-        return {
-          message: `¿En cual calendario te gustaria reservar?\n${calendarString}`,
-          buffer: {},
-        };
-      },
-      add_event_date: async (answer: Answer, message: string, buffer: any) => {
-        const [calendars] = await this.calendarService.get();
-        const calendar = calendars[parseInt(message) - 1];
-        //todo if doesn't understand calendar question against
-        if (!calendar)
-          return {
-            message: 'Calendario no encontrado',
-            resetConversation: true,
-          };
-
-        return {
-          message: '¿Para que fecha?',
-          buffer: {
-            calendarId: calendar.id,
-            calendarName: calendar.name,
-          },
-        };
-      },
-      add_event_time: async (answer: Answer, message: string, buffer: any) => {
-        return {
-          message: `¿Desde que horario a que horario?\n`,
-          buffer: { date: message },
-        };
-      },
-      add_event_response: async (
-        answer: Answer,
-        message: string,
-        buffer: any,
-        wppId: string,
-      ) => {
-        const user = await this.userService.getOneBy('wppId', wppId);
-        const isCreated = await this.addEvent(
-          'New event',
-          buffer.calendarId,
-          buffer.date,
-          message,
-          user.id,
-        );
-        return {
-          message: `Evento agregado.\n`,
-          resetConversation: true,
-        };
-      },
-    };
+  private updateMemory(wppId: string, messageId: string, buffer: any): void {
     const memoryIndex = memoryStatus.findIndex((m) => m.wppId == wppId);
     const memory = memoryStatus[memoryIndex];
-    const { message, buffer, resetConversation } = await answerFunctions[
-      answer.messageId
-    ](answer, userMessage, memory.buffer, wppId);
-    if (resetConversation) {
-      this.resetConversation(wppId);
-    } else {
-      memoryStatus.splice(memoryIndex, 1, {
-        wppId,
-        messageIds: [...memory.messageIds, answer.messageId],
-        buffer: { ...memory.buffer, ...buffer },
-      });
-    }
-    return message;
+    memoryStatus.splice(memoryIndex, 1, {
+      wppId,
+      messageIds: [...memory.messageIds, messageId],
+      buffer: { ...memory.buffer, ...buffer },
+    });
+  }
+
+  private welcomeAnswer(): AnswerFunctionOutput {
+    return {
+      response: `Buenos dias! ¿En que podemos ayudarte?\n
+      1_ Ver disponibilidad\n
+      2_ Reservar\n
+      1_ Cancelar reserva`,
+    };
+  }
+
+  private async chooseCalendar(): Promise<AnswerFunctionOutput> {
+    const [calendars] = await this.calendarService.get();
+    const calendarString = calendars
+      .reduce((acc, el, index) => `${acc}\n${index + 1}_ ${el.name}`, '')
+      .slice(1);
+    return {
+      response: `¿En cual calendario te gustaria reservar?\n${calendarString}`,
+    };
+  }
+
+  private getAnswers(): Answer[] {
+    return [
+      {
+        messageId: 'reset',
+        keyword: ['reset', 'resetear', 'reiniciar'],
+        function: () => {
+          return { ...this.welcomeAnswer(), resetConversation: true };
+        },
+      },
+      {
+        messageId: 'welcome_answer',
+        keyword: [],
+        function: () => {
+          return this.welcomeAnswer();
+        },
+        nested: [
+          {
+            keyword: ['1'],
+            messageId: 'get_availability_calendar',
+            function: async () => this.chooseCalendar(),
+            nested: [
+              {
+                keyword: [],
+                messageId: 'get_availability_date',
+                function: async ({ message }) => {
+                  const [calendars] = await this.calendarService.get();
+                  const calendar = calendars[parseInt(message) - 1];
+
+                  //todo if doesn't understand calendar question against
+                  if (!calendar) {
+                    return {
+                      response: 'Calendario no encontrado',
+                      resetConversation: true,
+                    };
+                  }
+
+                  return {
+                    response: `¿Para que fecha?`,
+                    buffer: {
+                      calendarId: calendar.id,
+                      calendarName: calendar.name,
+                    },
+                  };
+                },
+                nested: [
+                  {
+                    keyword: [],
+                    messageId: 'get_availability_response',
+                    function: async ({ message, buffer }) => {
+                      const availabilityString = await this.getAvailability(
+                        buffer.calendarId,
+                        message,
+                      );
+                      return {
+                        response: `La disponibilidad para la fecha ${message} del calendario ${buffer.calendarName} es\n${availabilityString}`,
+                        resetConversation: true,
+                      };
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            keyword: ['2'],
+            messageId: 'add_event_calendar',
+            function: () => this.chooseCalendar(),
+            nested: [
+              {
+                keyword: [],
+                messageId: 'add_event_date',
+                function: async ({ message }) => {
+                  const [calendars] = await this.calendarService.get();
+                  const calendar = calendars[parseInt(message) - 1];
+                  //todo if doesn't understand calendar question against
+                  if (!calendar) {
+                    return {
+                      response: 'Calendario no encontrado',
+                      resetConversation: true,
+                    };
+                  }
+                  return {
+                    response: '¿Para que fecha?',
+                    buffer: {
+                      calendarId: calendar.id,
+                      calendarName: calendar.name,
+                    },
+                  };
+                },
+                nested: [
+                  {
+                    keyword: [],
+                    messageId: 'add_event_time',
+                    function: ({ message }) => {
+                      return {
+                        response: `¿Desde que horario a que horario?\n`,
+                        buffer: { date: message },
+                      };
+                    },
+                    nested: [
+                      {
+                        keyword: [],
+                        messageId: 'add_event_response',
+                        function: async ({ wppId, buffer, message }) => {
+                          const user = await this.userService.getOneBy(
+                            'wppId',
+                            wppId,
+                          );
+                          const isCreated = await this.addEvent(
+                            'New event',
+                            buffer.calendarId,
+                            buffer.date,
+                            message,
+                            user.id,
+                          );
+                          if (!isCreated) {
+                            return {
+                              response: 'Hubo un error al crear el evento.',
+                              resetConversation: true,
+                            };
+                          }
+                          return {
+                            response: `Evento agregado.\n`,
+                            resetConversation: true,
+                          };
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            keyword: ['3'],
+            messageId: 'remove_event',
+            function: () => ({ response: 'todo' }),
+            nested: [
+              {
+                keyword: [],
+                messageId: 'remove_event_confirm',
+                function: () => ({ response: 'todo' }),
+                nested: [
+                  {
+                    keyword: ['si'],
+                    messageId: 'remove_event_yes',
+                    function: () => ({ response: 'todo' }),
+                  },
+                  {
+                    keyword: ['no'],
+                    messageId: 'remove_event_yes',
+                    function: () => ({ response: 'todo' }),
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
   }
 
   public async messageHandler(message: string, wppId: string): Promise<string> {
     let userMemoryStatus = memoryStatus.find((m) => m.wppId == wppId);
-    let possibleAnswers = answers;
+    let possibleAnswers = this.getAnswers();
     if (!userMemoryStatus) {
       userMemoryStatus = {
         wppId,
@@ -303,18 +303,45 @@ export class WppHandlerService {
         (answer) => answer.messageId == messageId,
       ).nested;
     });
-    const matchAnswer = possibleAnswers.find((answer) =>
-      answer.keyword.includes(message),
-    );
-    const alternativeAnswer = possibleAnswers.find(
-      (answer) => answer.keyword.length == 0,
-    );
+    let matchAnswer: Answer = null;
+    let alternativeAnswer: Answer = null;
+    if (possibleAnswers) {
+      matchAnswer = possibleAnswers.find((answer) =>
+        answer.keyword.includes(message),
+      );
+      alternativeAnswer = possibleAnswers.find(
+        (answer) => answer.keyword.length == 0,
+      );
+    }
 
+    let response: AnswerFunctionOutput = null;
     if (matchAnswer) {
-      return this.processMessage(message, matchAnswer, wppId);
+      response = await matchAnswer.function({
+        buffer: userMemoryStatus.buffer,
+        message,
+        messageId: matchAnswer.messageId,
+        wppId,
+      });
     }
     if (alternativeAnswer) {
-      return this.processMessage(message, alternativeAnswer, wppId);
+      response = await alternativeAnswer.function({
+        buffer: userMemoryStatus.buffer,
+        message,
+        messageId: alternativeAnswer.messageId,
+        wppId,
+      });
+    }
+    if (response) {
+      if (!response.resetConversation) {
+        this.updateMemory(
+          wppId,
+          matchAnswer ? matchAnswer.messageId : alternativeAnswer.messageId,
+          response.buffer,
+        );
+      } else {
+        this.resetConversation(wppId);
+      }
+      return response.response;
     }
     return 'Lo siento no pude entenderte';
   }
