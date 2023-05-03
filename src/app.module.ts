@@ -13,6 +13,7 @@ import * as path from 'path';
 import { APP_PIPE } from '@nestjs/core';
 import { GetEventModule } from './get-event/get-event.module';
 import { AdminModule } from './admin/admin.module';
+import { TypeEventModule } from './type-event/type-event.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { AdminModule } from './admin/admin.module';
     GetEventModule,
     WppHandlerModule,
     AdminModule,
+    TypeEventModule,
   ],
   controllers: [AppController],
   providers: [
