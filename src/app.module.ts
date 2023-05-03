@@ -12,6 +12,7 @@ import { AcceptLanguageResolver, I18nModule, QueryResolver } from 'nestjs-i18n';
 import * as path from 'path';
 import { APP_PIPE } from '@nestjs/core';
 import { GetEventModule } from './get-event/get-event.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { GetEventModule } from './get-event/get-event.module';
     TypeOrmModule.forRoot(options as TypeOrmModuleOptions),
     GetEventModule,
     WppHandlerModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [

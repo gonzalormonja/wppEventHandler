@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DateTime } from 'luxon';
+import { AdminService } from 'src/admin/admin.service';
 import { AvailabilityService } from 'src/availability/availability.service';
 import { CalendarService } from 'src/calendar/calendar.service';
 import { EventService } from 'src/event/event.service';
@@ -7,10 +8,11 @@ import { UserService } from 'src/user/user.service';
 import convertMinuteToHour from 'src/utils/convert-minute-to-hour';
 
 interface AnswerFunction {
-  message: string;
-  buffer: any;
-  wppId: string;
-  messageId: string;
+  message?: string;
+  buffer?: any;
+  wppId?: string;
+  messageId?: string;
+  adminId: string;
 }
 interface AnswerFunctionOutput {
   buffer?: any;
@@ -20,7 +22,7 @@ interface AnswerFunctionOutput {
 }
 interface Answer {
   messageId: string;
-  keyword: string[];
+  keyword?: string[];
   nested?: Answer[];
   fallback?: any; //use this when user send wrong response
   function: ({
@@ -44,6 +46,7 @@ export class WppHandlerService {
     private readonly calendarService: CalendarService,
     private readonly eventServixe: EventService,
     private readonly userService: UserService,
+    private readonly adminService: AdminService,
   ) {}
   private async getAvailability(
     calendarId: string,
@@ -108,7 +111,7 @@ export class WppHandlerService {
 
   private welcomeAnswer(): AnswerFunctionOutput {
     return {
-      response: `Buenos dias! ¿En que podemos ayudarte?\n
+      response: `¿En que podemos ayudarte?\n
       1_ Ver disponibilidad\n
       2_ Reservar\n
       1_ Cancelar reserva`,
@@ -125,6 +128,21 @@ export class WppHandlerService {
     };
   }
 
+  private async newEventNotification(
+    adminId: string,
+    name: string,
+    date: string,
+    timeFrom: string,
+    timeTo: string,
+  ): Promise<void> {
+    const admin = await this.adminService.getOne(adminId);
+    //todo send notification to other whatsapp
+    console.log(`send notification to ${admin.wppId}`);
+    console.log(
+      `${name} reservo un turno para el dia ${date} desde las ${timeFrom} hasta las ${timeTo}`,
+    );
+  }
+
   private getAnswers(): Answer[] {
     return [
       {
@@ -137,6 +155,31 @@ export class WppHandlerService {
             nextMessageId: 'welcome_answer',
           };
         },
+      },
+      {
+        function: () => {
+          return {
+            response: `Al parecer eres nuevo por aqui! ¿Cual es tu nombre?`,
+          };
+        },
+        messageId: 'user_not_found',
+        nested: [
+          {
+            function: async ({ message, buffer, wppId }) => {
+              await this.userService.create({
+                name: message,
+                wppId,
+              });
+              return {
+                response: `¡Bienvenido ${message}!`,
+                nextMessageId: 'welcome_answer',
+                resetConversation: true,
+              };
+            },
+            keyword: [],
+            messageId: 'add_user',
+          },
+        ],
       },
       {
         messageId: 'welcome_answer',
@@ -241,10 +284,23 @@ export class WppHandlerService {
                       {
                         keyword: [],
                         messageId: 'add_event_response',
-                        function: async ({ wppId, buffer, message }) => {
+                        function: async ({
+                          wppId,
+                          buffer,
+                          message,
+                          adminId,
+                        }) => {
                           const user = await this.userService.getOneBy(
                             'wppId',
                             wppId,
+                          );
+                          const [from, to] = message.split(' a ');
+                          await this.newEventNotification(
+                            adminId,
+                            user.name,
+                            buffer.date,
+                            from,
+                            to,
                           );
                           const isCreated = await this.addEvent(
                             'New event',
@@ -253,6 +309,7 @@ export class WppHandlerService {
                             message,
                             user.id,
                           );
+
                           return {
                             response: !isCreated
                               ? 'Hubo un error al crear el evento.'
@@ -327,9 +384,10 @@ export class WppHandlerService {
     message: string,
     wppId: string,
     messageId?: string,
+    adminId?: string,
   ): Promise<string[]> {
-    let userMemoryStatus = memoryStatus.find((m) => m.wppId == wppId);
     let possibleAnswers = this.getAnswers();
+    let userMemoryStatus = memoryStatus.find((m) => m.wppId == wppId);
     if (!userMemoryStatus) {
       userMemoryStatus = {
         wppId,
@@ -338,6 +396,15 @@ export class WppHandlerService {
       };
       memoryStatus.push(userMemoryStatus);
     }
+
+    const user = await this.userService.getOneBy('wppId', wppId);
+    if (!user && userMemoryStatus.messageIds.at(-1) != 'user_not_found') {
+      const response = await possibleAnswers
+        .find((answer) => answer.messageId == 'user_not_found')
+        .function({ adminId });
+      return this.processResponse(response, wppId, 'user_not_found');
+    }
+
     const { messageIds } = userMemoryStatus;
     messageIds.forEach((messageId) => {
       possibleAnswers = possibleAnswers.find(
@@ -349,10 +416,11 @@ export class WppHandlerService {
     if (possibleAnswers) {
       matchAnswer = possibleAnswers.find(
         (answer) =>
-          answer.keyword.includes(message) || answer.messageId == messageId,
+          (answer.keyword && answer.keyword.includes(message)) ||
+          answer.messageId == messageId,
       );
       alternativeAnswer = possibleAnswers.find(
-        (answer) => answer.keyword.length == 0,
+        (answer) => answer.keyword && answer.keyword.length == 0,
       );
     }
 
@@ -363,6 +431,7 @@ export class WppHandlerService {
         message,
         messageId: matchAnswer.messageId,
         wppId,
+        adminId,
       });
     }
     if (alternativeAnswer) {
@@ -371,6 +440,7 @@ export class WppHandlerService {
         message,
         messageId: alternativeAnswer.messageId,
         wppId,
+        adminId,
       });
     }
     return this.processResponse(

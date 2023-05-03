@@ -32,6 +32,11 @@ export class WppHandlerController {
   public async messageHandler(
     @Param('message') message: string,
   ): Promise<string[]> {
-    return this.wppHandlerService.messageHandler(message, '1');
+    return this.wppHandlerService.messageHandler(
+      message,
+      '4',
+      null,
+      '3460eaf9-7599-4de4-aab6-0bb378fccafc',
+    );
   }
 }
