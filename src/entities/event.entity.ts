@@ -14,8 +14,8 @@ export class Event extends BaseEntity {
   endDateTime: Date;
   @Column({ type: 'enum', enum: Status, default: Status.Pending })
   status: Status;
-  @ManyToOne(() => Calendar)
+  @ManyToOne(() => Calendar, (calendar) => calendar.events)
   calendar: Calendar;
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, (user) => user.events)
   user: User;
 }

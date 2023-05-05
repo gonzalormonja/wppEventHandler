@@ -7,20 +7,26 @@ import setTimeFromMinutes from 'src/utils/set-time-from-minutes';
 import { GetEventService } from 'src/get-event/get-event.service';
 import { ScheduleOutput } from 'src/models/schedule.output';
 import convertHourToMinute from 'src/utils/convert-hour-to-minute';
+import { TypeEvent } from 'src/entities/type-event.entity';
+import { TypeEventService } from 'src/type-event/type-event.service';
 
 @Injectable()
 export class AvailabilityService {
   constructor(
     private readonly calendarService: CalendarService,
     private readonly getEventService: GetEventService,
+    private readonly typeEventService: TypeEventService,
   ) {}
 
   public async getAvailability(
     calendarId: string,
     date: DateTime,
+    typeEventId: string,
   ): Promise<AvailabilityOutput> {
     const calendar = await this.calendarService.getOne(calendarId);
     if (!calendar) throw new NotFoundException('error.CALENDAR_NOT_FOUND');
+    const typeEvent = await this.typeEventService.getOne(typeEventId);
+    if (!typeEvent) throw new NotFoundException('error.TYPE_EVENT_NOT_FOUND');
     const inputWeekday = date.weekday;
     const dateSchedules = calendar.dateSchedules
       .filter((dateSchedule) =>
@@ -43,6 +49,8 @@ export class AvailabilityService {
 
     schedules = this.removeEmptyRanges(schedules);
 
+    schedules = this.filteredRanges(schedules, typeEvent);
+
     schedules = this.sortSchedules(schedules);
 
     return { schedules };
@@ -56,12 +64,22 @@ export class AvailabilityService {
     return schedules.sort((a, b) => (a.from < b.from ? -1 : 1));
   }
 
+  private filteredRanges(
+    schedules: ScheduleOutput[],
+    typeEvent: TypeEvent,
+  ): ScheduleOutput[] {
+    return schedules.filter(
+      (schedule) => schedule.to - schedule.from > typeEvent.durationInMinutes,
+    );
+  }
+
   private async removeBusyEventSchedules(
     calendarId: uuid,
     date: DateTime,
     schedules: ScheduleOutput[],
   ): Promise<ScheduleOutput[]> {
     const [events] = await this.getEventService.get(
+      null,
       calendarId,
       date.startOf('day'),
       date.endOf('day'),
@@ -140,11 +158,13 @@ export class AvailabilityService {
     startDate: DateTime,
     endDate: DateTime,
     calendarId: uuid,
+    typeEVentId: string,
   ): Promise<boolean> {
     //todo validate if event it is more one day
     const { schedules } = await this.getAvailability(
       calendarId,
       startDate.startOf('day'),
+      typeEVentId,
     );
 
     const matchedSchedule = schedules.find((schedule) => {

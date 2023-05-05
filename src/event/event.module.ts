@@ -7,6 +7,7 @@ import { EventController } from './event.controller';
 import { UserModule } from 'src/user/user.module';
 import { AvailabilityModule } from 'src/availability/availability.module';
 import { GetEventModule } from 'src/get-event/get-event.module';
+import { TypeEventModule } from 'src/type-event/type-event.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { GetEventModule } from 'src/get-event/get-event.module';
     UserModule,
     AvailabilityModule,
     GetEventModule,
+    TypeEventModule,
   ],
   providers: [EventService],
   controllers: [EventController],

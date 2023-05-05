@@ -9,6 +9,9 @@ export class CreateEventInput {
   description: string;
   @ApiProperty({ type: String })
   @IsUUID('4')
+  typeEventId: uuid;
+  @ApiProperty({ type: String })
+  @IsUUID('4')
   userId: uuid;
   @ApiProperty()
   @Transform(({ value }) => (value ? new Date(value) : null))

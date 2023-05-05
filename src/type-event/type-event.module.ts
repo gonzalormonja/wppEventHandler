@@ -8,5 +8,6 @@ import { TypeEvent } from 'src/entities/type-event.entity';
   imports: [forwardRef(() => TypeOrmModule.forFeature([TypeEvent]))],
   providers: [TypeEventService],
   controllers: [TypeEventController],
+  exports: [TypeEventService],
 })
 export class TypeEventModule {}

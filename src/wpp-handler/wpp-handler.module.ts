@@ -6,6 +6,8 @@ import { AvailabilityModule } from 'src/availability/availability.module';
 import { EventModule } from 'src/event/event.module';
 import { UserModule } from 'src/user/user.module';
 import { AdminModule } from 'src/admin/admin.module';
+import { TypeEventModule } from 'src/type-event/type-event.module';
+import { GetEventModule } from 'src/get-event/get-event.module';
 
 @Module({
   imports: [
@@ -14,6 +16,8 @@ import { AdminModule } from 'src/admin/admin.module';
     EventModule,
     UserModule,
     AdminModule,
+    TypeEventModule,
+    GetEventModule,
   ],
   providers: [WppHandlerService],
   controllers: [WppHandlerController],

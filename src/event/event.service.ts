@@ -13,6 +13,7 @@ import { UserService } from 'src/user/user.service';
 import { AvailabilityService } from 'src/availability/availability.service';
 import { DateTime } from 'luxon';
 import { GetEventService } from 'src/get-event/get-event.service';
+import { TypeEventService } from 'src/type-event/type-event.service';
 
 @Injectable()
 export class EventService {
@@ -22,15 +23,20 @@ export class EventService {
     private readonly userService: UserService,
     private readonly availabilityService: AvailabilityService,
     private readonly getEventService: GetEventService,
+    private readonly typeEventService: TypeEventService,
   ) {}
 
   public async create({
     calendarId,
     userId,
+    typeEventId,
     ...eventInput
   }: CreateEventInput): Promise<Event> {
     const calendar = await this.calendarService.getOne(calendarId);
     if (!calendar) throw new NotFoundException('error.CALENDAR_NOT_FOUND');
+
+    const typeEvent = await this.typeEventService.getOne(typeEventId);
+    if (!typeEvent) throw new NotFoundException('error.TYPE_EVENT_NOT_FOUND');
 
     const user = await this.userService.getOne(userId);
     if (!user) throw new NotFoundException('error.CALENDAR_NOT_FOUND');
@@ -45,6 +51,7 @@ export class EventService {
       DateTime.fromJSDate(event.startDateTime),
       DateTime.fromJSDate(event.endDateTime),
       event.calendar.id,
+      typeEvent.id,
     );
     if (!dateIsValid)
       throw new BadRequestException('error.SCHEDULE_NOT_AVAILABLE');

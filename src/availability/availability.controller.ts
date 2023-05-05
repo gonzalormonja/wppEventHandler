@@ -15,11 +15,12 @@ export class AvailabilityController {
   @Serialize(AvailabilityOutput)
   @ApiResponse({ status: 200, type: AvailabilityOutput })
   public async getAvailability(
-    @Query() { calendarId, date }: AvailabilityInput,
+    @Query() { calendarId, date, typeEventId }: AvailabilityInput,
   ): Promise<AvailabilityOutput> {
     return this.availabilityService.getAvailability(
       calendarId,
       DateTime.fromJSDate(date),
+      typeEventId,
     );
   }
 }

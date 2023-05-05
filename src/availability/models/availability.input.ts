@@ -5,9 +5,13 @@ import { DateTime } from 'luxon';
 import * as uuid from 'uuid';
 
 export class AvailabilityInput {
-  @ApiProperty({ type: uuid })
+  @ApiProperty({ type: String })
   @IsUUID('4')
   calendarId: uuid;
+
+  @ApiProperty({ type: String })
+  @IsUUID('4')
+  typeEventId: uuid;
 
   @ApiProperty({ type: Date })
   @IsDate()
