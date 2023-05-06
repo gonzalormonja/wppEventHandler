@@ -55,7 +55,9 @@ export class WppHandlerController {
           `1`,
           `3460eaf9-7599-4de4-aab6-0bb378fccafc`,
         );
-        response.forEach((response) => client.sendMessage(msg.from, response));
+        response
+          .filter((response) => response.length > 0)
+          .forEach((response) => client.sendMessage(msg.from, response));
       });
       client.initialize();
     });

@@ -433,33 +433,78 @@ export class WppHandlerService {
         previousMessageId: 'welcome_answer',
         keywords: ['3'],
         messageId: 'remove_event',
-        function: () => ({ response: 'remove_event', messageId: 'todo' }),
+        function: async ({ wppId, buffer, message, adminId }) => {
+          const user = await this.userService.getOneBy('wppId', wppId);
+          const [events] = await this.getEventService.get(user.id);
+          const response = events.reduce((acc, el, index) => {
+            const date = DateTime.fromJSDate(
+              new Date(el.startDateTime),
+            ).toFormat('dd-MM-yyyy');
+            const from = DateTime.fromJSDate(
+              new Date(el.startDateTime),
+            ).toFormat('HH:mm');
+            const to = DateTime.fromJSDate(new Date(el.endDateTime)).toFormat(
+              'HH:mm',
+            );
+            return `${acc}\n${
+              index + 1
+            }_ El dia ${date} desde ${from}hs hasta ${to}hs`;
+          }, '');
+          return {
+            response: `Tienes las siguientes reservas\n${response}\n\n¿Cual deseas cancelar?`,
+            messageId: 'remove_event',
+          };
+        },
       },
       {
         previousMessageId: 'remove_event',
         keywords: ['.'],
         messageId: 'remove_event_confirm',
-        function: () => ({
-          response: 'todo',
-          messageId: 'remove_event_confirm',
-        }),
+        function: async ({ wppId, buffer, message, adminId }) => {
+          const user = await this.userService.getOneBy('wppId', wppId);
+          const [events] = await this.getEventService.get(user.id);
+          const event = events[parseInt(message) - 1];
+          const date = DateTime.fromJSDate(
+            new Date(event.startDateTime),
+          ).toFormat('dd-MM-yyyy');
+          const from = DateTime.fromJSDate(
+            new Date(event.startDateTime),
+          ).toFormat('HH:mm');
+          const to = DateTime.fromJSDate(new Date(event.endDateTime)).toFormat(
+            'HH:mm',
+          );
+          return {
+            response: `¿Seguro deseas cancelar la reserva del dia ${date} desde ${from}hs hasta ${to}hs?\n1_ Si\n2_ No`,
+            messageId: 'remove_event_confirm',
+            buffer: {
+              eventId: event.id,
+            },
+          };
+        },
       },
       {
         previousMessageId: 'remove_event_confirm',
-        keywords: ['si'],
+        keywords: ['1'],
         messageId: 'remove_event_yes',
-        function: () => ({
-          response: 'todo',
-          messageId: 'remove_event_yes',
-        }),
+        function: async ({ wppId, buffer, message, adminId }) => {
+          await this.eventServixe.delete(buffer.eventId);
+
+          return {
+            response: `Reserva cancelada`,
+            resetConversation: true,
+            messageId: 'remove_event_confirm',
+            nextAnswer: this.welcomeAnswer(),
+          };
+        },
       },
       {
         previousMessageId: 'remove_event_confirm',
-        keywords: ['no'],
-        messageId: 'remove_event_yes',
+        keywords: ['2'],
+        messageId: 'remove_event_no',
         function: () => ({
-          response: 'todo',
-          messageId: 'remove_event_yes',
+          resetConversation: true,
+          nextAnswer: this.welcomeAnswer(),
+          messageId: 'remove_event_no',
         }),
       },
       {
