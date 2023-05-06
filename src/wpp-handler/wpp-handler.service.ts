@@ -3,6 +3,7 @@ import { DateTime } from 'luxon';
 import { AdminService } from 'src/admin/admin.service';
 import { AvailabilityService } from 'src/availability/availability.service';
 import { CalendarService } from 'src/calendar/calendar.service';
+import { Calendar } from 'src/entities/calendar.entity';
 import { TypeEvent } from 'src/entities/type-event.entity';
 import { User } from 'src/entities/user.entity';
 import { EventService } from 'src/event/event.service';
@@ -11,6 +12,7 @@ import { TypeEventService } from 'src/type-event/type-event.service';
 import { UserService } from 'src/user/user.service';
 import convertHourToMinute from 'src/utils/convert-hour-to-minute';
 import convertMinuteToHour from 'src/utils/convert-minute-to-hour';
+import datesRegExp from 'src/utils/dates-reg-exp';
 
 interface AnswerFunction {
   message?: string;
@@ -30,7 +32,7 @@ interface Answer {
   messageId: string;
   keywords?: string[];
   previousMessageId?: string;
-  fallback?: any; //use this when user send wrong response
+  fallback?: () => AnswerFunctionOutput | Promise<AnswerFunctionOutput>; //use this when user send wrong response
   function: ({
     message,
     buffer,
@@ -56,12 +58,405 @@ export class WppHandlerService {
     private readonly typeEventService: TypeEventService,
     private readonly getEventService: GetEventService,
   ) {}
+
+  private getAnswers(): Answer[] {
+    return [
+      this.welcome(this.welcomeAnswer()),
+      {
+        messageId: 'reset',
+        keywords: ['reset', 'resetear', 'reiniciar'],
+        function: () => {
+          return {
+            response: 'Reiniciando',
+            resetConversation: true,
+            nextAnswer: this.welcomeAnswer(),
+            messageId: 'reset',
+          };
+        },
+      },
+      {
+        function: async ({ message, buffer, wppId }) => {
+          await this.userService.create({
+            name: message,
+            wppId,
+          });
+          return {
+            response: `¡Bienvenido ${message}!`,
+            nextAnswer: this.welcomeAnswer(),
+            resetConversation: true,
+            messageId: 'user_not_found',
+          };
+        },
+        keywords: ['.'],
+        messageId: 'add_user',
+        previousMessageId: 'user_not_found',
+      },
+      this.welcomeAnswer(),
+      this.getAvailabilityChooseCalendar(),
+      this.getAvailabilityDate(),
+      this.getAvailabilityTypeEvent(),
+      {
+        previousMessageId: 'get_availability_type_event',
+        keywords: ['^\\d{1,2}$'],
+        messageId: 'get_availability_response',
+        function: async ({ message, buffer }) => {
+          const [typeEvents] = await this.typeEventService.get();
+          const typeEvent = typeEvents[parseInt(message) - 1];
+          if (!typeEvent)
+            return {
+              response: 'Tipo de evento no encontrado',
+              nextAnswer: this.getAvailabilityTypeEvent(),
+              messageId: 'get_availability_response',
+            };
+          const availabilityString = await this.getAvailability(
+            buffer.calendarId,
+            buffer.date,
+            typeEvent,
+          );
+          return {
+            response: `La disponibilidad para la fecha ${buffer.date} del calendario ${buffer.calendarName} es\n${availabilityString}`,
+            nextAnswer: this.welcomeAnswer(),
+            resetConversation: true,
+            messageId: 'get_availability_response',
+          };
+        },
+      },
+      {
+        previousMessageId: 'welcome_answer',
+        keywords: ['2'],
+        messageId: 'add_event_calendar',
+        function: () => this.chooseCalendar('add_event_calendar'),
+      },
+      {
+        previousMessageId: 'add_event_calendar',
+        keywords: ['.'],
+        messageId: 'add_event_type_event',
+        function: async ({ message, buffer }) => {
+          const [calendars] = await this.calendarService.get();
+          const calendar = calendars[parseInt(message) - 1];
+          //todo if doesn't understand calendar question against
+          if (!calendar) {
+            return {
+              response: 'Calendario no encontrado',
+              nextAnswer: this.welcomeAnswer(),
+              resetConversation: true,
+              messageId: 'add_event_type_event',
+            };
+          }
+          const response = await this.chooseTypeEvent(
+            'add_event_type_event',
+            buffer,
+          );
+          return {
+            ...response,
+            buffer: {
+              ...response.buffer,
+              calendarId: calendar.id,
+              calendarName: calendar.name,
+            },
+          };
+        },
+      },
+      {
+        previousMessageId: 'add_event_type_event',
+        keywords: ['.'],
+        messageId: 'add_event_date',
+        function: async ({ message }) => {
+          const [typeEvents] = await this.typeEventService.get();
+          const typeEvent = typeEvents[parseInt(message) - 1];
+          if (!typeEvent)
+            return {
+              resetConversation: true,
+              response: 'Tipo de evento no encontrado',
+              nextAnswer: this.welcomeAnswer(),
+              messageId: 'add_event_date',
+            };
+          return {
+            response: '¿Para que fecha?',
+            buffer: {
+              typeEvent: typeEvent,
+            },
+            messageId: 'add_event_date',
+          };
+        },
+      },
+      {
+        previousMessageId: 'add_event_date',
+        keywords: ['.'],
+        messageId: 'add_event_time',
+        function: ({ message }) => {
+          return {
+            response: `¿Desde que horario a que horario?\n`,
+            buffer: { date: message },
+            messageId: 'add_event_time',
+          };
+        },
+      },
+      {
+        previousMessageId: 'add_event_time',
+        keywords: ['.'],
+        messageId: 'add_event_response',
+        function: async ({ wppId, buffer, message, adminId }) => {
+          const user = await this.userService.getOneBy('wppId', wppId);
+          const from = message;
+          const to = convertMinuteToHour(
+            convertHourToMinute(from) + buffer.typeEvent.durationInMinutes,
+          );
+          const isCreated = await this.addEvent(
+            `${buffer.typeEvent.name} - ${user.name}`,
+            buffer.calendarId,
+            buffer.date,
+            from,
+            to,
+            user.id,
+            buffer.typeEvent.id,
+          );
+
+          await this.newEventNotification(
+            adminId,
+            user.name,
+            buffer.date,
+            from,
+            to,
+          );
+
+          return {
+            response: !isCreated
+              ? 'Hubo un error al crear el evento.'
+              : `Evento agregado.\n`,
+            nextAnswer: this.welcomeAnswer(),
+            resetConversation: true,
+            messageId: 'add_event_response',
+          };
+        },
+      },
+      {
+        previousMessageId: 'welcome_answer',
+        keywords: ['3'],
+        messageId: 'remove_event',
+        function: async ({ wppId, buffer, message, adminId }) => {
+          const user = await this.userService.getOneBy('wppId', wppId);
+          const [events] = await this.getEventService.get(user.id);
+          const eventsString = events.reduce((acc, el, index) => {
+            const date = DateTime.fromJSDate(
+              new Date(el.startDateTime),
+            ).toFormat('dd-MM-yyyy');
+            const from = DateTime.fromJSDate(
+              new Date(el.startDateTime),
+            ).toFormat('HH:mm');
+            const to = DateTime.fromJSDate(new Date(el.endDateTime)).toFormat(
+              'HH:mm',
+            );
+            return `${acc}\n${
+              index + 1
+            }_ El dia ${date} desde ${from}hs hasta ${to}hs`;
+          }, '');
+          let response: AnswerFunctionOutput = {
+            response: `Tienes las siguientes reservas\n${eventsString}\n\n¿Cual deseas cancelar?`,
+            messageId: 'remove_event',
+          };
+          if (events.length <= 0) {
+            response = {
+              response: `No tienes reservas actualmente.`,
+              messageId: 'remove_event',
+              nextAnswer: this.welcomeAnswer(),
+              resetConversation: true,
+            };
+          }
+          return response;
+        },
+      },
+      {
+        previousMessageId: 'remove_event',
+        keywords: ['.'],
+        messageId: 'remove_event_confirm',
+        function: async ({ wppId, buffer, message, adminId }) => {
+          const user = await this.userService.getOneBy('wppId', wppId);
+          const [events] = await this.getEventService.get(user.id);
+          const event = events[parseInt(message) - 1];
+          const date = DateTime.fromJSDate(
+            new Date(event.startDateTime),
+          ).toFormat('dd-MM-yyyy');
+          const from = DateTime.fromJSDate(
+            new Date(event.startDateTime),
+          ).toFormat('HH:mm');
+          const to = DateTime.fromJSDate(new Date(event.endDateTime)).toFormat(
+            'HH:mm',
+          );
+          return {
+            response: `¿Seguro deseas cancelar la reserva del dia ${date} desde ${from}hs hasta ${to}hs?\n1_ Si\n2_ No`,
+            messageId: 'remove_event_confirm',
+            buffer: {
+              eventId: event.id,
+            },
+          };
+        },
+      },
+      {
+        previousMessageId: 'remove_event_confirm',
+        keywords: ['1'],
+        messageId: 'remove_event_yes',
+        function: async ({ wppId, buffer, message, adminId }) => {
+          await this.eventServixe.delete(buffer.eventId);
+
+          return {
+            response: `Reserva cancelada`,
+            resetConversation: true,
+            messageId: 'remove_event_confirm',
+            nextAnswer: this.welcomeAnswer(),
+          };
+        },
+      },
+      {
+        previousMessageId: 'remove_event_confirm',
+        keywords: ['2'],
+        messageId: 'remove_event_no',
+        function: () => ({
+          resetConversation: true,
+          nextAnswer: this.welcomeAnswer(),
+          messageId: 'remove_event_no',
+        }),
+      },
+      {
+        previousMessageId: 'welcome_answer',
+        keywords: ['4'],
+        messageId: 'get_events',
+        function: async ({ wppId, buffer, message, adminId }) => {
+          const user = await this.userService.getOneBy('wppId', wppId);
+          const [events] = await this.getEventService.get(user.id);
+          const eventsString = events.reduce((acc, el) => {
+            const date = DateTime.fromJSDate(
+              new Date(el.startDateTime),
+            ).toFormat('dd-MM-yyyy');
+            const from = DateTime.fromJSDate(
+              new Date(el.startDateTime),
+            ).toFormat('HH:mm');
+            const to = DateTime.fromJSDate(new Date(el.endDateTime)).toFormat(
+              'HH:mm',
+            );
+            return `${acc}\nEl dia ${date} desde ${from}hs hasta ${to}hs`;
+          }, '');
+          let response = `Tienes las siguientes reservas\n${eventsString}`;
+          if (events.length <= 0) {
+            response = `No tienes reservas actualmente.`;
+          }
+          return {
+            response: response,
+            nextAnswer: this.welcomeAnswer(),
+            resetConversation: true,
+            messageId: 'get_events',
+          };
+        },
+      },
+    ];
+  }
+
+  private getAvailabilityChooseCalendar(): Answer {
+    return {
+      previousMessageId: 'welcome_answer',
+      keywords: ['1'],
+      messageId: 'get_availability_calendar',
+      fallback: () => ({
+        messageId: 'get_availability_calendar',
+        nextAnswer: this.getAvailabilityChooseCalendar(),
+        response: 'Lo siento, no pude entenderte.',
+      }),
+      function: async () => this.chooseCalendar('get_availability_calendar'),
+    };
+  }
+
+  private getAvailabilityDate(): Answer {
+    return {
+      previousMessageId: 'get_availability_calendar',
+      keywords: ['^\\d{1,2}$', 'cancelar'],
+      messageId: 'get_availability_date',
+      fallback: () => ({
+        messageId: 'get_availability_date',
+        nextAnswer: this.getAvailabilityDate(),
+        response: 'Lo siento, no pude entenderte.',
+      }),
+      function: async ({ message, buffer }) => {
+        if (message == 'cancelar') {
+          return {
+            resetConversation: true,
+            nextAnswer: this.welcomeAnswer(),
+            messageId: 'get_availability_date',
+          };
+        }
+
+        let calendar: Calendar = null;
+        if (message.length > 0) {
+          const [calendars] = await this.calendarService.get();
+          calendar = calendars[parseInt(message) - 1];
+        }
+
+        if (!calendar)
+          calendar = await this.calendarService.getOne(buffer.calendarId);
+
+        //todo if doesn't understand calendar question against
+        if (!calendar) {
+          return {
+            response: 'Calendario no encontrado',
+            nextAnswer: this.getAvailabilityChooseCalendar(),
+            messageId: 'get_availability_date',
+          };
+        }
+
+        return {
+          response: `¿Para que fecha?`,
+          buffer: {
+            calendarId: calendar.id,
+            calendarName: calendar.name,
+          },
+          messageId: 'get_availability_date',
+        };
+      },
+    };
+  }
+
+  private getAvailabilityTypeEvent(): Answer {
+    return {
+      previousMessageId: 'get_availability_date',
+      keywords: datesRegExp.map((dateRegEx) => dateRegEx.regExp),
+      messageId: 'get_availability_type_event',
+      fallback: () => ({
+        messageId: 'get_availability_type_event',
+        nextAnswer: this.getAvailabilityTypeEvent(),
+        response: 'Lo siento, no pude entenderte.',
+      }),
+      function: async ({ message, buffer }) => {
+        const response = await this.chooseTypeEvent(
+          'get_availability_type_event',
+          buffer,
+        );
+        const dateRegExp = datesRegExp.find(({ regExp }) =>
+          new RegExp(regExp).test(message),
+        );
+        let date: DateTime = null;
+        if (!dateRegExp) {
+          date = buffer.date;
+        } else {
+          date = DateTime.fromFormat(message, dateRegExp.luxonFormat);
+        }
+        if (!date || !date.isValid) {
+          return this.getAvailabilityDate().fallback();
+        }
+        return {
+          ...response,
+          buffer: {
+            ...response.buffer,
+            date,
+          },
+        };
+      },
+    };
+  }
+
   private async getAvailability(
     calendarId: string,
-    dateString: string,
+    date: DateTime,
     typeEvent: TypeEvent,
   ): Promise<string> {
-    const date = DateTime.fromFormat(dateString, 'dd-MM-yyyy');
     const { schedules } = await this.availabilityService.getAvailability(
       calendarId,
       date,
@@ -205,338 +600,6 @@ export class WppHandlerService {
     };
   }
 
-  private getAnswers(): Answer[] {
-    return [
-      this.welcome(this.welcomeAnswer()),
-      {
-        messageId: 'reset',
-        keywords: ['reset', 'resetear', 'reiniciar'],
-        function: () => {
-          return {
-            response: 'Reiniciando',
-            resetConversation: true,
-            nextAnswer: this.welcomeAnswer(),
-            messageId: 'reset',
-          };
-        },
-      },
-      {
-        function: async ({ message, buffer, wppId }) => {
-          await this.userService.create({
-            name: message,
-            wppId,
-          });
-          return {
-            response: `¡Bienvenido ${message}!`,
-            nextAnswer: this.welcomeAnswer(),
-            resetConversation: true,
-            messageId: 'user_not_found',
-          };
-        },
-        keywords: ['.'],
-        messageId: 'add_user',
-        previousMessageId: 'user_not_found',
-      },
-      this.welcomeAnswer(),
-      {
-        previousMessageId: 'welcome_answer',
-        keywords: ['1'],
-        messageId: 'get_availability_calendar',
-        function: async () => this.chooseCalendar('get_availability_calendar'),
-      },
-      {
-        previousMessageId: 'get_availability_calendar',
-        keywords: ['.'],
-        messageId: 'get_availability_date',
-        function: async ({ message }) => {
-          if (message == 'cancelar') {
-            return this.welcomeAnswer();
-          }
-          const [calendars] = await this.calendarService.get();
-          const calendar = calendars[parseInt(message) - 1];
-
-          //todo if doesn't understand calendar question against
-          if (!calendar) {
-            return {
-              resetConversation: true,
-              response: 'Calendario no encontrado',
-              nextAnswer: this.welcomeAnswer(),
-              messageId: 'get_availability_date',
-            };
-          }
-
-          return {
-            response: `¿Para que fecha?`,
-            buffer: {
-              calendarId: calendar.id,
-              calendarName: calendar.name,
-            },
-            messageId: 'get_availability_date',
-          };
-        },
-      },
-      {
-        previousMessageId: 'get_availability_date',
-        keywords: ['.'],
-        messageId: 'get_availability_type_event',
-        function: async ({ message, buffer }) => {
-          const response = await this.chooseTypeEvent(
-            'get_availability_type_event',
-            buffer,
-          );
-          return {
-            ...response,
-            buffer: {
-              ...response.buffer,
-              date: message,
-            },
-          };
-        },
-      },
-      {
-        previousMessageId: 'get_availability_type_event',
-        keywords: ['.'],
-        messageId: 'get_availability_response',
-        function: async ({ message, buffer }) => {
-          const [typeEvents] = await this.typeEventService.get();
-          const typeEvent = typeEvents[parseInt(message) - 1];
-          if (!typeEvent)
-            return {
-              resetConversation: true,
-              response: 'Tipo de evento no encontrado',
-              nextAnswer: this.welcomeAnswer(),
-              messageId: 'get_availability_response',
-            };
-          const availabilityString = await this.getAvailability(
-            buffer.calendarId,
-            buffer.date,
-            typeEvent,
-          );
-          return {
-            response: `La disponibilidad para la fecha ${buffer.date} del calendario ${buffer.calendarName} es\n${availabilityString}`,
-            nextAnswer: this.welcomeAnswer(),
-            resetConversation: true,
-            messageId: 'get_availability_response',
-          };
-        },
-      },
-      {
-        previousMessageId: 'welcome_answer',
-        keywords: ['2'],
-        messageId: 'add_event_calendar',
-        function: () => this.chooseCalendar('add_event_calendar'),
-      },
-      {
-        previousMessageId: 'add_event_calendar',
-        keywords: ['.'],
-        messageId: 'add_event_type_event',
-        function: async ({ message, buffer }) => {
-          const [calendars] = await this.calendarService.get();
-          const calendar = calendars[parseInt(message) - 1];
-          //todo if doesn't understand calendar question against
-          if (!calendar) {
-            return {
-              response: 'Calendario no encontrado',
-              nextAnswer: this.welcomeAnswer(),
-              resetConversation: true,
-              messageId: 'add_event_type_event',
-            };
-          }
-          const response = await this.chooseTypeEvent(
-            'add_event_type_event',
-            buffer,
-          );
-          return {
-            ...response,
-            buffer: {
-              ...response.buffer,
-              calendarId: calendar.id,
-              calendarName: calendar.name,
-            },
-          };
-        },
-      },
-      {
-        previousMessageId: 'add_event_type_event',
-        keywords: ['.'],
-        messageId: 'add_event_date',
-        function: async ({ message }) => {
-          const [typeEvents] = await this.typeEventService.get();
-          const typeEvent = typeEvents[parseInt(message) - 1];
-          if (!typeEvent)
-            return {
-              resetConversation: true,
-              response: 'Tipo de evento no encontrado',
-              nextAnswer: this.welcomeAnswer(),
-              messageId: 'add_event_date',
-            };
-          return {
-            response: '¿Para que fecha?',
-            buffer: {
-              typeEvent: typeEvent,
-            },
-            messageId: 'add_event_date',
-          };
-        },
-      },
-      {
-        previousMessageId: 'add_event_date',
-        keywords: ['.'],
-        messageId: 'add_event_time',
-        function: ({ message }) => {
-          return {
-            response: `¿Desde que horario a que horario?\n`,
-            buffer: { date: message },
-            messageId: 'add_event_time',
-          };
-        },
-      },
-      {
-        previousMessageId: 'add_event_time',
-        keywords: ['.'],
-        messageId: 'add_event_response',
-        function: async ({ wppId, buffer, message, adminId }) => {
-          const user = await this.userService.getOneBy('wppId', wppId);
-          const from = message;
-          const to = convertMinuteToHour(
-            convertHourToMinute(from) + buffer.typeEvent.durationInMinutes,
-          );
-          const isCreated = await this.addEvent(
-            `${buffer.typeEvent.name} - ${user.name}`,
-            buffer.calendarId,
-            buffer.date,
-            from,
-            to,
-            user.id,
-            buffer.typeEvent.id,
-          );
-
-          await this.newEventNotification(
-            adminId,
-            user.name,
-            buffer.date,
-            from,
-            to,
-          );
-
-          return {
-            response: !isCreated
-              ? 'Hubo un error al crear el evento.'
-              : `Evento agregado.\n`,
-            nextAnswer: this.welcomeAnswer(),
-            resetConversation: true,
-            messageId: 'add_event_response',
-          };
-        },
-      },
-      {
-        previousMessageId: 'welcome_answer',
-        keywords: ['3'],
-        messageId: 'remove_event',
-        function: async ({ wppId, buffer, message, adminId }) => {
-          const user = await this.userService.getOneBy('wppId', wppId);
-          const [events] = await this.getEventService.get(user.id);
-          const response = events.reduce((acc, el, index) => {
-            const date = DateTime.fromJSDate(
-              new Date(el.startDateTime),
-            ).toFormat('dd-MM-yyyy');
-            const from = DateTime.fromJSDate(
-              new Date(el.startDateTime),
-            ).toFormat('HH:mm');
-            const to = DateTime.fromJSDate(new Date(el.endDateTime)).toFormat(
-              'HH:mm',
-            );
-            return `${acc}\n${
-              index + 1
-            }_ El dia ${date} desde ${from}hs hasta ${to}hs`;
-          }, '');
-          return {
-            response: `Tienes las siguientes reservas\n${response}\n\n¿Cual deseas cancelar?`,
-            messageId: 'remove_event',
-          };
-        },
-      },
-      {
-        previousMessageId: 'remove_event',
-        keywords: ['.'],
-        messageId: 'remove_event_confirm',
-        function: async ({ wppId, buffer, message, adminId }) => {
-          const user = await this.userService.getOneBy('wppId', wppId);
-          const [events] = await this.getEventService.get(user.id);
-          const event = events[parseInt(message) - 1];
-          const date = DateTime.fromJSDate(
-            new Date(event.startDateTime),
-          ).toFormat('dd-MM-yyyy');
-          const from = DateTime.fromJSDate(
-            new Date(event.startDateTime),
-          ).toFormat('HH:mm');
-          const to = DateTime.fromJSDate(new Date(event.endDateTime)).toFormat(
-            'HH:mm',
-          );
-          return {
-            response: `¿Seguro deseas cancelar la reserva del dia ${date} desde ${from}hs hasta ${to}hs?\n1_ Si\n2_ No`,
-            messageId: 'remove_event_confirm',
-            buffer: {
-              eventId: event.id,
-            },
-          };
-        },
-      },
-      {
-        previousMessageId: 'remove_event_confirm',
-        keywords: ['1'],
-        messageId: 'remove_event_yes',
-        function: async ({ wppId, buffer, message, adminId }) => {
-          await this.eventServixe.delete(buffer.eventId);
-
-          return {
-            response: `Reserva cancelada`,
-            resetConversation: true,
-            messageId: 'remove_event_confirm',
-            nextAnswer: this.welcomeAnswer(),
-          };
-        },
-      },
-      {
-        previousMessageId: 'remove_event_confirm',
-        keywords: ['2'],
-        messageId: 'remove_event_no',
-        function: () => ({
-          resetConversation: true,
-          nextAnswer: this.welcomeAnswer(),
-          messageId: 'remove_event_no',
-        }),
-      },
-      {
-        previousMessageId: 'welcome_answer',
-        keywords: ['4'],
-        messageId: 'get_events',
-        function: async ({ wppId, buffer, message, adminId }) => {
-          const user = await this.userService.getOneBy('wppId', wppId);
-          const [events] = await this.getEventService.get(user.id);
-          const response = events.reduce((acc, el) => {
-            const date = DateTime.fromJSDate(
-              new Date(el.startDateTime),
-            ).toFormat('dd-MM-yyyy');
-            const from = DateTime.fromJSDate(
-              new Date(el.startDateTime),
-            ).toFormat('HH:mm');
-            const to = DateTime.fromJSDate(new Date(el.endDateTime)).toFormat(
-              'HH:mm',
-            );
-            return `${acc}\nEl dia ${date} desde ${from}hs hasta ${to}hs`;
-          }, '');
-          return {
-            response: `Tienes las siguientes reservas\n${response}`,
-            nextAnswer: this.welcomeAnswer(),
-            resetConversation: true,
-            messageId: 'get_events',
-          };
-        },
-      },
-    ];
-  }
-
   private async processResponse(
     response: AnswerFunctionOutput,
     wppId: string,
@@ -607,28 +670,30 @@ export class WppHandlerService {
     const lastMessageId = userMemory.messageIds.at(-1);
     const answersWithPreviousMessageId = answers.filter(
       (answer) =>
-        answer.previousMessageId == lastMessageId &&
-        answer.previousMessageId &&
-        answer.keywords.some((keyword) =>
-          new RegExp(keyword, 'i').test(userResponse),
-        ),
-    );
-    const otherAnswers = answers.filter(
-      (answer) =>
-        !answer.previousMessageId &&
+        ((answer.previousMessageId == lastMessageId &&
+          answer.previousMessageId) ||
+          (!lastMessageId && !answer.previousMessageId)) &&
         answer.keywords.some((keyword) =>
           new RegExp(keyword, 'i').test(userResponse),
         ),
     );
     if (answersWithPreviousMessageId.length == 1)
       return answersWithPreviousMessageId[0];
-    if (otherAnswers.length == 1) return otherAnswers[0];
 
-    console.log(
-      'Hay muchas respuestas',
-      answersWithPreviousMessageId,
-      otherAnswers,
-    );
+    if (answersWithPreviousMessageId.length <= 0) {
+      const lastMessage = answers.find(
+        ({ messageId }) => messageId == lastMessageId,
+      );
+      if (lastMessage && lastMessage.fallback)
+        return {
+          ...lastMessage,
+          function: lastMessage.fallback,
+        };
+      return this.welcomeAnswer();
+    }
+    if (answersWithPreviousMessageId.length > 1) {
+      console.log('Hay muchas respuestas', answersWithPreviousMessageId);
+    }
   }
   public async messageHandler(
     message: string,

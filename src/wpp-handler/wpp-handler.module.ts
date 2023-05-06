@@ -25,6 +25,6 @@ import { GetEventModule } from 'src/get-event/get-event.module';
 })
 export class WppHandlerModule {
   constructor(private readonly wppHandlerController: WppHandlerController) {
-    this.wppHandlerController.startWpp();
+    // this.wppHandlerController.startWpp();
   }
 }
