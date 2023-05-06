@@ -21,6 +21,7 @@ interface AnswerFunction {
   wppId?: string;
   messageId?: string;
   adminId: string;
+  sendMessage?: (from: string, response: string) => any;
 }
 interface AnswerFunctionOutput {
   buffer?: any;
@@ -60,8 +61,28 @@ export class WppHandlerService {
     private readonly getEventService: GetEventService,
   ) {}
 
-  private getAnswers(): Answer[] {
+  private getAnswers(connectionString: string): Answer[] {
     return [
+      {
+        messageId: 'connect_admin',
+        keywords: [`^${connectionString}$`],
+        previousMessageId: 'welcome_answer',
+        function: async ({ message, adminId, wppId }) => {
+          const admin = await this.adminService.getOne(adminId);
+          if (admin.connectString == message) {
+            await this.adminService.addWppId(adminId, wppId);
+            return {
+              response: 'Admin conectado',
+              resetConversation: true,
+              messageId: 'connect_admin',
+            };
+          }
+          return {
+            resetConversation: true,
+            messageId: 'connect_admin',
+          };
+        },
+      },
       this.welcome(this.welcomeAnswer()),
       {
         messageId: 'reset',
@@ -130,7 +151,7 @@ export class WppHandlerService {
         previousMessageId: 'add_event_time',
         keywords: timesRegExp.map((timeRegEx) => timeRegEx.regExp),
         messageId: 'add_event_response',
-        function: async ({ wppId, buffer, message, adminId }) => {
+        function: async ({ wppId, buffer, message, adminId, sendMessage }) => {
           const user = await this.userService.getOneBy('wppId', wppId);
 
           const timeRegExp = timesRegExp.find(({ regExp }) =>
@@ -166,6 +187,7 @@ export class WppHandlerService {
             buffer.date,
             from.toFormat('HH:mm'),
             to,
+            sendMessage,
           );
 
           return {
@@ -367,7 +389,6 @@ export class WppHandlerService {
         if (!calendar)
           calendar = await this.calendarService.getOne(buffer.calendarId);
 
-        //todo if doesn't understand calendar question against
         if (!calendar) {
           return {
             response: 'Calendario no encontrado',
@@ -446,7 +467,7 @@ export class WppHandlerService {
           return this.addEventDate().fallback();
         }
         return {
-          response: `¿A que hora?\n`,
+          response: `¿A que hora?`,
           buffer: { date },
           messageId: 'add_event_time',
         };
@@ -496,7 +517,6 @@ export class WppHandlerService {
         if (!calendar)
           calendar = await this.calendarService.getOne(buffer.calendarId);
 
-        //todo if doesn't understand calendar question against
         if (!calendar) {
           return {
             response: 'Calendario no encontrado',
@@ -653,12 +673,12 @@ export class WppHandlerService {
     date: DateTime,
     timeFrom: string,
     timeTo: string,
+    sendMessage: (from: string, response: string) => any,
   ): Promise<void> {
     const admin = await this.adminService.getOne(adminId);
     if (admin) {
-      //todo send notification to other whatsapp
-      console.log(`send notification to ${admin.wppId}`);
-      console.log(
+      sendMessage(
+        admin.wppId,
         `${name} reservo un turno para el dia ${date.toFormat(
           'dd/MM/yyyy',
         )} desde las ${timeFrom} hasta las ${timeTo}`,
@@ -711,12 +731,21 @@ export class WppHandlerService {
   }
 
   private async processResponse(
-    response: AnswerFunctionOutput,
+    matchAnswer: Answer,
     wppId: string,
     userMemory: MemoryStatus,
     adminId: string,
     message: string,
+    sendMessage: (from: string, response: string) => any,
   ): Promise<string[]> {
+    const response: AnswerFunctionOutput = await matchAnswer.function({
+      buffer: userMemory.buffer,
+      message,
+      messageId: matchAnswer.messageId,
+      wppId,
+      adminId,
+      sendMessage,
+    });
     let responses: string[] = [];
     if (response) {
       if (!response.resetConversation) {
@@ -726,20 +755,13 @@ export class WppHandlerService {
       }
       responses.push(response.response);
       if (response.nextAnswer) {
-        const nextResponse: AnswerFunctionOutput =
-          await response.nextAnswer.function({
-            message,
-            buffer: userMemory.buffer,
-            wppId,
-            messageId: response.messageId,
-            adminId,
-          });
         const nextResponses = await this.processResponse(
-          nextResponse,
+          response.nextAnswer,
           wppId,
           userMemory,
           adminId,
           message,
+          sendMessage,
         );
         responses = [...responses, ...nextResponses];
       }
@@ -775,8 +797,9 @@ export class WppHandlerService {
   private async getMatchAnswer(
     userResponse: string,
     userMemory: MemoryStatus,
+    connectionString: string,
   ): Promise<Answer> {
-    const answers = this.getAnswers();
+    const answers = this.getAnswers(connectionString);
     const lastMessageId = userMemory.messageIds.at(-1);
     const answersWithPreviousMessageId = answers.filter(
       (answer) =>
@@ -808,31 +831,32 @@ export class WppHandlerService {
   public async messageHandler(
     message: string,
     wppId: string,
-    adminId?: string,
+    adminId: string,
+    sendMessage: (from: string, response: string) => any,
   ): Promise<string[]> {
+    const admin = await this.adminService.getOne(adminId);
+    if (!admin) throw new NotFoundException('error.ADMIN_NOT_FOUND');
     const userMemory = this.getUserMemory(wppId);
     const { user, answer } = await this.getUser(wppId, userMemory);
     let matchAnswer: Answer;
     if (answer) {
       matchAnswer = answer;
     } else {
-      matchAnswer = await this.getMatchAnswer(message, userMemory);
+      matchAnswer = await this.getMatchAnswer(
+        message,
+        userMemory,
+        admin.connectString,
+      );
     }
 
     if (matchAnswer) {
-      const response: AnswerFunctionOutput = await matchAnswer.function({
-        buffer: userMemory.buffer,
-        message,
-        messageId: matchAnswer.messageId,
-        wppId,
-        adminId,
-      });
       return this.processResponse(
-        response,
+        matchAnswer,
         wppId,
         userMemory,
         adminId,
         message,
+        sendMessage,
       );
     }
   }
