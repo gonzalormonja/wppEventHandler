@@ -694,6 +694,11 @@ export class WppHandlerService {
       previousMessageId: 'welcome',
       messageId: 'welcome_answer',
       keywords: ['.'],
+      fallback: () => ({
+        messageId: 'welcome_answer',
+        nextAnswer: this.welcomeAnswer(),
+        response: 'Lo siento, no pude entenderte.',
+      }),
       function: () => ({
         response: `¿En que podemos ayudarte?\n
           1_ Ver disponibilidad\n
