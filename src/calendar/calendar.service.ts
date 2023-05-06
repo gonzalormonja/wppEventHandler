@@ -108,6 +108,7 @@ export class CalendarService {
   }
 
   public async getOne(id: string): Promise<Calendar> {
+    if (!id) return;
     return this.calendarModel.findOne({
       relations: ['dateSchedules', 'daySchedules'],
       where: { id },

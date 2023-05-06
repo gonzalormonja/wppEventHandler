@@ -13,6 +13,7 @@ import { UserService } from 'src/user/user.service';
 import convertHourToMinute from 'src/utils/convert-hour-to-minute';
 import convertMinuteToHour from 'src/utils/convert-minute-to-hour';
 import datesRegExp from 'src/utils/dates-reg-exp';
+import timesRegExp from 'src/utils/times-reg-exp';
 
 interface AnswerFunction {
   message?: string;
@@ -121,92 +122,39 @@ export class WppHandlerService {
           };
         },
       },
-      {
-        previousMessageId: 'welcome_answer',
-        keywords: ['2'],
-        messageId: 'add_event_calendar',
-        function: () => this.chooseCalendar('add_event_calendar'),
-      },
-      {
-        previousMessageId: 'add_event_calendar',
-        keywords: ['.'],
-        messageId: 'add_event_type_event',
-        function: async ({ message, buffer }) => {
-          const [calendars] = await this.calendarService.get();
-          const calendar = calendars[parseInt(message) - 1];
-          //todo if doesn't understand calendar question against
-          if (!calendar) {
-            return {
-              response: 'Calendario no encontrado',
-              nextAnswer: this.welcomeAnswer(),
-              resetConversation: true,
-              messageId: 'add_event_type_event',
-            };
-          }
-          const response = await this.chooseTypeEvent(
-            'add_event_type_event',
-            buffer,
-          );
-          return {
-            ...response,
-            buffer: {
-              ...response.buffer,
-              calendarId: calendar.id,
-              calendarName: calendar.name,
-            },
-          };
-        },
-      },
-      {
-        previousMessageId: 'add_event_type_event',
-        keywords: ['.'],
-        messageId: 'add_event_date',
-        function: async ({ message }) => {
-          const [typeEvents] = await this.typeEventService.get();
-          const typeEvent = typeEvents[parseInt(message) - 1];
-          if (!typeEvent)
-            return {
-              resetConversation: true,
-              response: 'Tipo de evento no encontrado',
-              nextAnswer: this.welcomeAnswer(),
-              messageId: 'add_event_date',
-            };
-          return {
-            response: '¿Para que fecha?',
-            buffer: {
-              typeEvent: typeEvent,
-            },
-            messageId: 'add_event_date',
-          };
-        },
-      },
-      {
-        previousMessageId: 'add_event_date',
-        keywords: ['.'],
-        messageId: 'add_event_time',
-        function: ({ message }) => {
-          return {
-            response: `¿Desde que horario a que horario?\n`,
-            buffer: { date: message },
-            messageId: 'add_event_time',
-          };
-        },
-      },
+      this.addEventChooseCalendar(),
+      this.addEventTypeEvent(),
+      this.addEventDate(),
+      this.addEventTime(),
       {
         previousMessageId: 'add_event_time',
-        keywords: ['.'],
+        keywords: timesRegExp.map((timeRegEx) => timeRegEx.regExp),
         messageId: 'add_event_response',
         function: async ({ wppId, buffer, message, adminId }) => {
           const user = await this.userService.getOneBy('wppId', wppId);
-          const from = message;
+
+          const timeRegExp = timesRegExp.find(({ regExp }) =>
+            new RegExp(regExp).test(message),
+          );
+          let from: DateTime = null;
+          if (!timeRegExp) {
+            from = buffer.date;
+          } else {
+            from = DateTime.fromFormat(message, timeRegExp.luxonFormat);
+          }
+          if (!from || !from.isValid) {
+            return this.addEventTime().fallback();
+          }
+
           const to = convertMinuteToHour(
-            convertHourToMinute(from) + buffer.typeEvent.durationInMinutes,
+            convertHourToMinute(from.toFormat('HH:mm')) +
+              buffer.typeEvent.durationInMinutes,
           );
           const isCreated = await this.addEvent(
             `${buffer.typeEvent.name} - ${user.name}`,
             buffer.calendarId,
             buffer.date,
-            from,
+            from.toFormat('HH:mm'),
             to,
             user.id,
             buffer.typeEvent.id,
@@ -216,7 +164,7 @@ export class WppHandlerService {
             adminId,
             user.name,
             buffer.date,
-            from,
+            from.toFormat('HH:mm'),
             to,
           );
 
@@ -240,7 +188,7 @@ export class WppHandlerService {
           const eventsString = events.reduce((acc, el, index) => {
             const date = DateTime.fromJSDate(
               new Date(el.startDateTime),
-            ).toFormat('dd-MM-yyyy');
+            ).toFormat('dd/MM/yyyy');
             const from = DateTime.fromJSDate(
               new Date(el.startDateTime),
             ).toFormat('HH:mm');
@@ -276,7 +224,7 @@ export class WppHandlerService {
           const event = events[parseInt(message) - 1];
           const date = DateTime.fromJSDate(
             new Date(event.startDateTime),
-          ).toFormat('dd-MM-yyyy');
+          ).toFormat('dd/MM/yyyy');
           const from = DateTime.fromJSDate(
             new Date(event.startDateTime),
           ).toFormat('HH:mm');
@@ -327,7 +275,7 @@ export class WppHandlerService {
           const eventsString = events.reduce((acc, el) => {
             const date = DateTime.fromJSDate(
               new Date(el.startDateTime),
-            ).toFormat('dd-MM-yyyy');
+            ).toFormat('dd/MM/yyyy');
             const from = DateTime.fromJSDate(
               new Date(el.startDateTime),
             ).toFormat('HH:mm');
@@ -349,6 +297,122 @@ export class WppHandlerService {
         },
       },
     ];
+  }
+
+  private addEventChooseCalendar(): Answer {
+    return {
+      previousMessageId: 'welcome_answer',
+      keywords: ['2'],
+      messageId: 'add_event_calendar',
+      fallback: () => ({
+        messageId: 'add_event_calendar',
+        nextAnswer: this.getAvailabilityChooseCalendar(),
+        response: 'Lo siento, no pude entenderte.',
+      }),
+      function: async () => this.chooseCalendar('add_event_calendar'),
+    };
+  }
+
+  private addEventTypeEvent(): Answer {
+    return {
+      previousMessageId: 'add_event_calendar',
+      keywords: ['.'],
+      messageId: 'add_event_type_event',
+      function: async ({ message, buffer }) => {
+        let calendar: Calendar = null;
+        if (message.length > 0) {
+          const [calendars] = await this.calendarService.get();
+          calendar = calendars[parseInt(message) - 1];
+        }
+
+        if (!calendar)
+          calendar = await this.calendarService.getOne(buffer.calendarId);
+
+        //todo if doesn't understand calendar question against
+        if (!calendar) {
+          return {
+            response: 'Calendario no encontrado',
+            nextAnswer: this.addEventChooseCalendar(),
+            messageId: 'add_event_type_event',
+          };
+        }
+        const response = await this.chooseTypeEvent(
+          'add_event_type_event',
+          buffer,
+        );
+
+        return {
+          ...response,
+          buffer: {
+            ...response.buffer,
+            calendarId: calendar.id,
+            calendarName: calendar.name,
+          },
+        };
+      },
+    };
+  }
+
+  private addEventDate(): Answer {
+    return {
+      previousMessageId: 'add_event_type_event',
+      keywords: ['.'],
+      messageId: 'add_event_date',
+      fallback: () => ({
+        messageId: 'add_event_date',
+        nextAnswer: this.addEventDate(),
+        response: 'Lo siento, no pude entenderte.',
+      }),
+      function: async ({ message }) => {
+        const [typeEvents] = await this.typeEventService.get();
+        const typeEvent = typeEvents[parseInt(message) - 1];
+        if (!typeEvent)
+          return {
+            response: 'Tipo de evento no encontrado',
+            nextAnswer: this.addEventTypeEvent(),
+            messageId: 'add_event_date',
+          };
+        return {
+          response: '¿Para que fecha?',
+          buffer: {
+            typeEvent: typeEvent,
+          },
+          messageId: 'add_event_date',
+        };
+      },
+    };
+  }
+
+  private addEventTime(): Answer {
+    return {
+      previousMessageId: 'add_event_date',
+      keywords: datesRegExp.map((dateRegEx) => dateRegEx.regExp),
+      messageId: 'add_event_time',
+      fallback: () => ({
+        messageId: 'add_event_time',
+        nextAnswer: this.addEventTime(),
+        response: 'Lo siento, no pude entenderte.',
+      }),
+      function: ({ message, buffer }) => {
+        const dateRegExp = datesRegExp.find(({ regExp }) =>
+          new RegExp(regExp).test(message),
+        );
+        let date: DateTime = null;
+        if (!dateRegExp) {
+          date = buffer.date;
+        } else {
+          date = DateTime.fromFormat(message, dateRegExp.luxonFormat);
+        }
+        if (!date || !date.isValid) {
+          return this.addEventDate().fallback();
+        }
+        return {
+          response: `¿A que hora?\n`,
+          buffer: { date },
+          messageId: 'add_event_time',
+        };
+      },
+    };
   }
 
   private getAvailabilityChooseCalendar(): Answer {
@@ -480,19 +544,19 @@ export class WppHandlerService {
   private async addEvent(
     description: string,
     calendarId: string,
-    date: string,
+    date: DateTime,
     from: string,
     to: string,
     userId: string,
     typeEventId: string,
   ): Promise<boolean> {
     const startDateTime = DateTime.fromFormat(
-      `${date} ${from}`,
-      'dd-MM-yyyy HH:mm',
+      `${date.toFormat('dd/MM/yyyy')} ${from}`,
+      'dd/MM/yyyy HH:mm',
     );
     const endDateTime = DateTime.fromFormat(
-      `${date} ${to}`,
-      'dd-MM-yyyy HH:mm',
+      `${date.toFormat('dd/MM/yyyy')} ${to}`,
+      'dd/MM/yyyy HH:mm',
     );
 
     const event = await this.eventServixe.create({
@@ -547,7 +611,7 @@ export class WppHandlerService {
   private async newEventNotification(
     adminId: string,
     name: string,
-    date: string,
+    date: DateTime,
     timeFrom: string,
     timeTo: string,
   ): Promise<void> {
@@ -556,7 +620,9 @@ export class WppHandlerService {
       //todo send notification to other whatsapp
       console.log(`send notification to ${admin.wppId}`);
       console.log(
-        `${name} reservo un turno para el dia ${date} desde las ${timeFrom} hasta las ${timeTo}`,
+        `${name} reservo un turno para el dia ${date.toFormat(
+          'dd/MM/yyyy',
+        )} desde las ${timeFrom} hasta las ${timeTo}`,
       );
     }
   }
