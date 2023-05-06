@@ -18,8 +18,13 @@ import { GetEventModule } from 'src/get-event/get-event.module';
     AdminModule,
     TypeEventModule,
     GetEventModule,
+    AdminModule,
   ],
-  providers: [WppHandlerService],
+  providers: [WppHandlerService, WppHandlerController],
   controllers: [WppHandlerController],
 })
-export class WppHandlerModule {}
+export class WppHandlerModule {
+  constructor(private readonly wppHandlerController: WppHandlerController) {
+    this.wppHandlerController.startWpp();
+  }
+}

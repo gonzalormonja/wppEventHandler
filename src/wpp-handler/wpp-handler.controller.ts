@@ -2,33 +2,64 @@ import { Controller, Get, Param } from '@nestjs/common';
 import { Client, LocalAuth } from 'whatsapp-web.js';
 import * as qrcode from 'qrcode-terminal';
 import { WppHandlerService } from './wpp-handler.service';
+import { AdminService } from 'src/admin/admin.service';
+import * as uuid from 'uuid';
 
 const SESSION_FILE_PATH = __dirname + '/../../session';
 
 @Controller('wpp-handler')
 export class WppHandlerController {
-  client: Client;
-  constructor(private readonly wppHandlerService: WppHandlerService) {
-    this.client = new Client({
-      authStrategy: new LocalAuth({ dataPath: SESSION_FILE_PATH }),
-      puppeteer: {
-        args: ['--no-sandbox'],
-      },
-    });
-    this.client.on('qr', (qr) => qrcode.generate(qr, { small: true }));
-    this.client.on('authenticated', () => console.log('Authenticated'));
-    this.client.on('auth_failure', () => console.log('auth_failure'));
-    this.client.on('message', async (msg) => {
-      const response = await this.wppHandlerService.messageHandler(
-        msg.body,
-        '1',
-        '3460eaf9-7599-4de4-aab6-0bb378fccafc',
+  wppAdmins: {
+    adminId: uuid;
+    client: Client;
+  }[] = [];
+  constructor(
+    private readonly wppHandlerService: WppHandlerService,
+    private readonly adminService: AdminService,
+  ) {}
+
+  public async startWpp() {
+    const admins = await this.adminService.getAdmins();
+    const promises = admins.map((admin) => {
+      let wppAdmin = this.wppAdmins.find(
+        (client) => client.adminId == admin.id,
       );
-      response.forEach((response) =>
-        this.client.sendMessage(msg.from, response),
+      if (!wppAdmin) {
+        wppAdmin = {
+          adminId: admin.id,
+          client: new Client({
+            authStrategy: new LocalAuth({
+              dataPath: `${SESSION_FILE_PATH}/${admin.sessionPath}`,
+            }),
+            puppeteer: {
+              args: ['--no-sandbox'],
+            },
+          }),
+        };
+        this.wppAdmins.push(wppAdmin);
+      }
+      const { client } = wppAdmin;
+      client.on(`qr`, (qr) => {
+        console.log(qrcode.generate(qr, { small: true }));
+        console.log(`QR para ${admin.name}`);
+      });
+      client.on(`authenticated`, () =>
+        console.log(`Authenticated ${admin.name}`),
       );
+      client.on(`auth_failure`, () =>
+        console.log(`auth_failure ${admin.name}`),
+      );
+      client.on(`message`, async (msg) => {
+        const response = await this.wppHandlerService.messageHandler(
+          msg.body,
+          `1`,
+          `3460eaf9-7599-4de4-aab6-0bb378fccafc`,
+        );
+        response.forEach((response) => client.sendMessage(msg.from, response));
+      });
+      client.initialize();
     });
-    this.client.initialize();
+    await Promise.all(promises);
   }
 
   @Get(':message')
