@@ -14,4 +14,7 @@ export class AdminService {
   public async getOne(id: string): Promise<Admin> {
     return this.adminModel.findOne({ where: { id } });
   }
+  public async addWppId(adminId: string, wppId: string): Promise<void> {
+    await this.adminModel.update({ id: adminId }, { wppId });
+  }
 }

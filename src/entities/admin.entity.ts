@@ -9,4 +9,6 @@ export class Admin extends BaseEntity {
   name: string;
   @Column({ type: 'varchar', length: 255, nullable: false, unique: true })
   sessionPath: string;
+  @Column({ type: 'varchar', length: 255, nullable: false })
+  connectString: string;
 }

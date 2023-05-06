@@ -53,7 +53,8 @@ export class WppHandlerController {
         const response = await this.wppHandlerService.messageHandler(
           msg.body,
           `1`,
-          `3460eaf9-7599-4de4-aab6-0bb378fccafc`,
+          admin.id,
+          client.sendMessage,
         );
         response
           .filter((response) => response.length > 0)
@@ -71,7 +72,8 @@ export class WppHandlerController {
     return this.wppHandlerService.messageHandler(
       message,
       '4',
-      '3460eaf9-7599-4de4-aab6-0bb378fccafc',
+      '63e6d0cc-56c1-4928-8122-98d390f2979e',
+      (from, response) => console.log(from, response),
     );
   }
 }
