@@ -178,71 +178,11 @@ export class WppHandlerService {
           };
         },
       },
-      {
-        previousMessageId: 'welcome_answer',
-        keywords: ['3'],
-        messageId: 'remove_event',
-        function: async ({ wppId, buffer, message, adminId }) => {
-          const user = await this.userService.getOneBy('wppId', wppId);
-          const [events] = await this.getEventService.get(user.id);
-          const eventsString = events.reduce((acc, el, index) => {
-            const date = DateTime.fromJSDate(
-              new Date(el.startDateTime),
-            ).toFormat('dd/MM/yyyy');
-            const from = DateTime.fromJSDate(
-              new Date(el.startDateTime),
-            ).toFormat('HH:mm');
-            const to = DateTime.fromJSDate(new Date(el.endDateTime)).toFormat(
-              'HH:mm',
-            );
-            return `${acc}\n${
-              index + 1
-            }_ El dia ${date} desde ${from}hs hasta ${to}hs`;
-          }, '');
-          let response: AnswerFunctionOutput = {
-            response: `Tienes las siguientes reservas\n${eventsString}\n\n¿Cual deseas cancelar?`,
-            messageId: 'remove_event',
-          };
-          if (events.length <= 0) {
-            response = {
-              response: `No tienes reservas actualmente.`,
-              messageId: 'remove_event',
-              nextAnswer: this.welcomeAnswer(),
-              resetConversation: true,
-            };
-          }
-          return response;
-        },
-      },
-      {
-        previousMessageId: 'remove_event',
-        keywords: ['.'],
-        messageId: 'remove_event_confirm',
-        function: async ({ wppId, buffer, message, adminId }) => {
-          const user = await this.userService.getOneBy('wppId', wppId);
-          const [events] = await this.getEventService.get(user.id);
-          const event = events[parseInt(message) - 1];
-          const date = DateTime.fromJSDate(
-            new Date(event.startDateTime),
-          ).toFormat('dd/MM/yyyy');
-          const from = DateTime.fromJSDate(
-            new Date(event.startDateTime),
-          ).toFormat('HH:mm');
-          const to = DateTime.fromJSDate(new Date(event.endDateTime)).toFormat(
-            'HH:mm',
-          );
-          return {
-            response: `¿Seguro deseas cancelar la reserva del dia ${date} desde ${from}hs hasta ${to}hs?\n1_ Si\n2_ No`,
-            messageId: 'remove_event_confirm',
-            buffer: {
-              eventId: event.id,
-            },
-          };
-        },
-      },
+      this.removeEventChooseEvent(),
+      this.removeEventConfirm(),
       {
         previousMessageId: 'remove_event_confirm',
-        keywords: ['1'],
+        keywords: ['^1$'],
         messageId: 'remove_event_yes',
         function: async ({ wppId, buffer, message, adminId }) => {
           await this.eventServixe.delete(buffer.eventId);
@@ -257,7 +197,7 @@ export class WppHandlerService {
       },
       {
         previousMessageId: 'remove_event_confirm',
-        keywords: ['2'],
+        keywords: ['^2$'],
         messageId: 'remove_event_no',
         function: () => ({
           resetConversation: true,
@@ -267,7 +207,7 @@ export class WppHandlerService {
       },
       {
         previousMessageId: 'welcome_answer',
-        keywords: ['4'],
+        keywords: ['^4$'],
         messageId: 'get_events',
         function: async ({ wppId, buffer, message, adminId }) => {
           const user = await this.userService.getOneBy('wppId', wppId);
@@ -299,10 +239,109 @@ export class WppHandlerService {
     ];
   }
 
+  private removeEventConfirm() {
+    return {
+      previousMessageId: 'remove_event',
+      keywords: ['^\\d{1,2}$', 'cancelar'],
+      messageId: 'remove_event_confirm',
+      fallback: () => ({
+        messageId: 'remove_event_confirm',
+        nextAnswer: this.removeEventConfirm(),
+        response: 'Lo siento, no pude entenderte.',
+      }),
+      function: async ({ wppId, buffer, message, adminId }) => {
+        if (message == 'cancelar') {
+          return {
+            resetConversation: true,
+            nextAnswer: this.welcomeAnswer(),
+            messageId: 'remove_event_confirm',
+          };
+        }
+        const user = await this.userService.getOneBy('wppId', wppId);
+        const [events] = await this.getEventService.get(user.id);
+        let event = events[parseInt(message) - 1];
+
+        if (!event) {
+          event = await this.getEventService.getOne(buffer.eventId);
+        }
+
+        if (!event) {
+          return {
+            response: 'Lo siento, no pude entenderte.',
+            nextAnswer: this.removeEventChooseEvent(),
+            messageId: 'remove_event_confirm',
+          };
+        }
+
+        const date = DateTime.fromJSDate(
+          new Date(event.startDateTime),
+        ).toFormat('dd/MM/yyyy');
+        const from = DateTime.fromJSDate(
+          new Date(event.startDateTime),
+        ).toFormat('HH:mm');
+        const to = DateTime.fromJSDate(new Date(event.endDateTime)).toFormat(
+          'HH:mm',
+        );
+
+        return {
+          response: `¿Seguro deseas cancelar la reserva del dia ${date} desde ${from}hs hasta ${to}hs?\n1_ Si\n2_ No`,
+          messageId: 'remove_event_confirm',
+          buffer: {
+            eventId: event.id,
+          },
+        };
+      },
+    };
+  }
+
+  private removeEventChooseEvent() {
+    return {
+      previousMessageId: 'welcome_answer',
+      keywords: ['^3$'],
+      messageId: 'remove_event',
+      fallback: () => ({
+        messageId: 'remove_event',
+        nextAnswer: this.removeEventChooseEvent(),
+        response: 'Lo siento, no pude entenderte.',
+      }),
+      function: async ({ wppId, buffer, message, adminId }) => {
+        const user = await this.userService.getOneBy('wppId', wppId);
+        const [events] = await this.getEventService.get(user.id);
+        const eventsString = events.reduce((acc, el, index) => {
+          const date = DateTime.fromJSDate(new Date(el.startDateTime)).toFormat(
+            'dd/MM/yyyy',
+          );
+          const from = DateTime.fromJSDate(new Date(el.startDateTime)).toFormat(
+            'HH:mm',
+          );
+          const to = DateTime.fromJSDate(new Date(el.endDateTime)).toFormat(
+            'HH:mm',
+          );
+          return `${acc}\n${
+            index + 1
+          }_ El dia ${date} desde ${from}hs hasta ${to}hs`;
+        }, '');
+        let response: AnswerFunctionOutput = {
+          response: `Tienes las siguientes reservas${eventsString}\n\n¿Cual deseas cancelar?\nPara volver al menu de inicio escribe *cancelar*`,
+          messageId: 'remove_event',
+        };
+        if (events.length <= 0) {
+          response = {
+            response: `No tienes reservas actualmente.`,
+            messageId: 'remove_event',
+            nextAnswer: this.welcomeAnswer(),
+            resetConversation: true,
+          };
+        }
+        return response;
+      },
+    };
+  }
+
   private addEventChooseCalendar(): Answer {
     return {
       previousMessageId: 'welcome_answer',
-      keywords: ['2'],
+      keywords: ['^2$'],
       messageId: 'add_event_calendar',
       fallback: () => ({
         messageId: 'add_event_calendar',
@@ -316,7 +355,7 @@ export class WppHandlerService {
   private addEventTypeEvent(): Answer {
     return {
       previousMessageId: 'add_event_calendar',
-      keywords: ['.'],
+      keywords: ['^\\d{1,2}$', 'cancelar'],
       messageId: 'add_event_type_event',
       function: async ({ message, buffer }) => {
         let calendar: Calendar = null;
@@ -356,7 +395,7 @@ export class WppHandlerService {
   private addEventDate(): Answer {
     return {
       previousMessageId: 'add_event_type_event',
-      keywords: ['.'],
+      keywords: ['^\\d{1,2}$', 'cancelar'],
       messageId: 'add_event_date',
       fallback: () => ({
         messageId: 'add_event_date',
@@ -418,7 +457,7 @@ export class WppHandlerService {
   private getAvailabilityChooseCalendar(): Answer {
     return {
       previousMessageId: 'welcome_answer',
-      keywords: ['1'],
+      keywords: ['^1$'],
       messageId: 'get_availability_calendar',
       fallback: () => ({
         messageId: 'get_availability_calendar',
