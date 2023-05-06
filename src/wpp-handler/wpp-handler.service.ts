@@ -402,7 +402,7 @@ export class WppHandlerService {
             convertHourToMinute(from) + buffer.typeEvent.durationInMinutes,
           );
           const isCreated = await this.addEvent(
-            'New event',
+            `${buffer.typeEvent.name} - ${user.name}`,
             buffer.calendarId,
             buffer.date,
             from,
