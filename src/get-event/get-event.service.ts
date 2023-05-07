@@ -55,6 +55,9 @@ export class GetEventService {
       };
     return this.eventModel.findAndCount({
       where: query,
+      order: {
+        startDateTime: 'ASC',
+      },
     });
   }
 
