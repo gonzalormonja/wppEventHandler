@@ -2,11 +2,14 @@ import { Controller, Get, Param } from '@nestjs/common';
 import { Client, LocalAuth } from 'whatsapp-web.js';
 import * as qrcode from 'qrcode-terminal';
 import { WppHandlerService } from './wpp-handler.service';
-import { AdminService } from 'src/admin/admin.service';
+import { AdminService } from '../admin/admin.service';
 import * as uuid from 'uuid';
+import { Public } from '../interceptors/guards/accessToken.guard';
+import { ApiTags } from '@nestjs/swagger';
 
 const SESSION_FILE_PATH = __dirname + '/../../session';
 
+@ApiTags('WppHandler')
 @Controller('wpp-handler')
 export class WppHandlerController {
   wppAdmins: {
@@ -65,6 +68,7 @@ export class WppHandlerController {
     await Promise.all(promises);
   }
 
+  @Public()
   @Get(':message')
   public async messageHandler(
     @Param('message') message: string,

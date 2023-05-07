@@ -1,27 +1,28 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DateTime } from 'luxon';
-import { AdminService } from 'src/admin/admin.service';
-import { AvailabilityService } from 'src/availability/availability.service';
-import { CalendarService } from 'src/calendar/calendar.service';
-import { Calendar } from 'src/entities/calendar.entity';
-import { TypeEvent } from 'src/entities/type-event.entity';
-import { User } from 'src/entities/user.entity';
-import { EventService } from 'src/event/event.service';
-import { GetEventService } from 'src/get-event/get-event.service';
-import { TypeEventService } from 'src/type-event/type-event.service';
-import { UserService } from 'src/user/user.service';
-import convertHourToMinute from 'src/utils/convert-hour-to-minute';
-import convertMinuteToHour from 'src/utils/convert-minute-to-hour';
-import datesRegExp from 'src/utils/dates-reg-exp';
-import timesRegExp from 'src/utils/times-reg-exp';
+import { AdminService } from '../admin/admin.service';
+import { AvailabilityService } from '../availability/availability.service';
+import { CalendarService } from '../calendar/calendar.service';
+import { Calendar } from '../entities/calendar.entity';
+import { TypeEvent } from '../entities/type-event.entity';
+import { User } from '../entities/user.entity';
+import { EventService } from '../event/event.service';
+import { GetEventService } from '../get-event/get-event.service';
+import { TypeEventService } from '../type-event/type-event.service';
+import { UserService } from '../user/user.service';
+import convertHourToMinute from '../utils/convert-hour-to-minute';
+import convertMinuteToHour from '../utils/convert-minute-to-hour';
+import datesRegExp from '../utils/dates-reg-exp';
+import timesRegExp from '../utils/times-reg-exp';
+import { Admin } from 'src/entities/admin.entity';
 
 interface AnswerFunction {
   message?: string;
   buffer?: any;
   wppId?: string;
   messageId?: string;
-  adminId: string;
   sendMessage?: (from: string, response: string) => any;
+  admin: Admin;
 }
 interface AnswerFunctionOutput {
   buffer?: any;
@@ -61,16 +62,15 @@ export class WppHandlerService {
     private readonly getEventService: GetEventService,
   ) {}
 
-  private getAnswers(connectionString: string): Answer[] {
+  private getAnswers(admin: Admin): Answer[] {
     return [
       {
         messageId: 'connect_admin',
-        keywords: [`^${connectionString}$`],
+        keywords: [`^${admin.connectString}$`],
         previousMessageId: 'welcome_answer',
-        function: async ({ message, adminId, wppId }) => {
-          const admin = await this.adminService.getOne(adminId);
+        function: async ({ message, admin, wppId }) => {
           if (admin.connectString == message) {
-            await this.adminService.addWppId(adminId, wppId);
+            await this.adminService.addWppId(admin.id, wppId);
             return {
               response: 'Admin conectado',
               resetConversation: true,
@@ -97,11 +97,14 @@ export class WppHandlerService {
         },
       },
       {
-        function: async ({ message, buffer, wppId }) => {
-          await this.userService.create({
-            name: message,
-            wppId,
-          });
+        function: async ({ message, buffer, wppId, admin }) => {
+          await this.userService.create(
+            {
+              name: message,
+              wppId,
+            },
+            admin,
+          );
           return {
             response: `¡Bienvenido ${message}!`,
             nextAnswer: this.welcomeAnswer(),
@@ -114,15 +117,15 @@ export class WppHandlerService {
         previousMessageId: 'user_not_found',
       },
       this.welcomeAnswer(),
-      this.getAvailabilityChooseCalendar(),
+      this.getAvailabilityChooseCalendar(admin),
       this.getAvailabilityDate(),
       this.getAvailabilityTypeEvent(),
       {
         previousMessageId: 'get_availability_type_event',
         keywords: ['^\\d{1,2}$'],
         messageId: 'get_availability_response',
-        function: async ({ message, buffer }) => {
-          const [typeEvents] = await this.typeEventService.get();
+        function: async ({ message, buffer, admin }) => {
+          const [typeEvents] = await this.typeEventService.get(admin);
           const typeEvent = typeEvents[parseInt(message) - 1];
           if (!typeEvent)
             return {
@@ -134,6 +137,7 @@ export class WppHandlerService {
             buffer.calendarId,
             buffer.date,
             typeEvent,
+            admin,
           );
           return {
             response: `La disponibilidad para la fecha ${buffer.date} del calendario ${buffer.calendarName} es\n${availabilityString}`,
@@ -143,7 +147,7 @@ export class WppHandlerService {
           };
         },
       },
-      this.addEventChooseCalendar(),
+      this.addEventChooseCalendar(admin),
       this.addEventTypeEvent(),
       this.addEventDate(),
       this.addEventTime(),
@@ -151,8 +155,8 @@ export class WppHandlerService {
         previousMessageId: 'add_event_time',
         keywords: timesRegExp.map((timeRegEx) => timeRegEx.regExp),
         messageId: 'add_event_response',
-        function: async ({ wppId, buffer, message, adminId, sendMessage }) => {
-          const user = await this.userService.getOneBy('wppId', wppId);
+        function: async ({ wppId, buffer, message, sendMessage, admin }) => {
+          const user = await this.userService.getOneBy('wppId', wppId, admin);
 
           const timeRegExp = timesRegExp.find(({ regExp }) =>
             new RegExp(regExp).test(message),
@@ -179,10 +183,11 @@ export class WppHandlerService {
             to,
             user.id,
             buffer.typeEvent.id,
+            admin,
           );
 
           await this.newEventNotification(
-            adminId,
+            admin,
             user.name,
             buffer.date,
             from.toFormat('HH:mm'),
@@ -206,8 +211,8 @@ export class WppHandlerService {
         previousMessageId: 'remove_event_confirm',
         keywords: ['^1$'],
         messageId: 'remove_event_yes',
-        function: async ({ wppId, buffer, message, adminId }) => {
-          await this.eventServixe.delete(buffer.eventId);
+        function: async ({ buffer, admin }) => {
+          await this.eventServixe.delete(buffer.eventId, admin);
 
           return {
             response: `Reserva cancelada`,
@@ -231,8 +236,8 @@ export class WppHandlerService {
         previousMessageId: 'welcome_answer',
         keywords: ['^4$'],
         messageId: 'get_events',
-        function: async ({ wppId, buffer, message, adminId }) => {
-          const user = await this.userService.getOneBy('wppId', wppId);
+        function: async ({ wppId, admin }) => {
+          const user = await this.userService.getOneBy('wppId', wppId, admin);
           const [events] = await this.getEventService.get(user.id);
           const eventsString = events.reduce((acc, el) => {
             const date = DateTime.fromJSDate(
@@ -271,7 +276,7 @@ export class WppHandlerService {
         nextAnswer: this.removeEventConfirm(),
         response: 'Lo siento, no pude entenderte.',
       }),
-      function: async ({ wppId, buffer, message, adminId }) => {
+      function: async ({ wppId, buffer, message, admin }) => {
         if (message == 'cancelar') {
           return {
             resetConversation: true,
@@ -279,7 +284,7 @@ export class WppHandlerService {
             messageId: 'remove_event_confirm',
           };
         }
-        const user = await this.userService.getOneBy('wppId', wppId);
+        const user = await this.userService.getOneBy('wppId', wppId, admin);
         const [events] = await this.getEventService.get(user.id);
         let event = events[parseInt(message) - 1];
 
@@ -326,8 +331,8 @@ export class WppHandlerService {
         nextAnswer: this.removeEventChooseEvent(),
         response: 'Lo siento, no pude entenderte.',
       }),
-      function: async ({ wppId, buffer, message, adminId }) => {
-        const user = await this.userService.getOneBy('wppId', wppId);
+      function: async ({ wppId, admin }) => {
+        const user = await this.userService.getOneBy('wppId', wppId, admin);
         const [events] = await this.getEventService.get(user.id);
         const eventsString = events.reduce((acc, el, index) => {
           const date = DateTime.fromJSDate(new Date(el.startDateTime)).toFormat(
@@ -360,17 +365,17 @@ export class WppHandlerService {
     };
   }
 
-  private addEventChooseCalendar(): Answer {
+  private addEventChooseCalendar(admin: Admin): Answer {
     return {
       previousMessageId: 'welcome_answer',
       keywords: ['^2$'],
       messageId: 'add_event_calendar',
       fallback: () => ({
         messageId: 'add_event_calendar',
-        nextAnswer: this.getAvailabilityChooseCalendar(),
+        nextAnswer: this.getAvailabilityChooseCalendar(admin),
         response: 'Lo siento, no pude entenderte.',
       }),
-      function: async () => this.chooseCalendar('add_event_calendar'),
+      function: async () => this.chooseCalendar('add_event_calendar', admin),
     };
   }
 
@@ -379,26 +384,30 @@ export class WppHandlerService {
       previousMessageId: 'add_event_calendar',
       keywords: ['^\\d{1,2}$', 'cancelar'],
       messageId: 'add_event_type_event',
-      function: async ({ message, buffer }) => {
+      function: async ({ message, buffer, admin }) => {
         let calendar: Calendar = null;
         if (message.length > 0) {
-          const [calendars] = await this.calendarService.get();
+          const [calendars] = await this.calendarService.get(admin);
           calendar = calendars[parseInt(message) - 1];
         }
 
         if (!calendar)
-          calendar = await this.calendarService.getOne(buffer.calendarId);
+          calendar = await this.calendarService.getOne(
+            buffer.calendarId,
+            admin,
+          );
 
         if (!calendar) {
           return {
             response: 'Calendario no encontrado',
-            nextAnswer: this.addEventChooseCalendar(),
+            nextAnswer: this.addEventChooseCalendar(admin),
             messageId: 'add_event_type_event',
           };
         }
         const response = await this.chooseTypeEvent(
           'add_event_type_event',
           buffer,
+          admin,
         );
 
         return {
@@ -423,8 +432,8 @@ export class WppHandlerService {
         nextAnswer: this.addEventDate(),
         response: 'Lo siento, no pude entenderte.',
       }),
-      function: async ({ message }) => {
-        const [typeEvents] = await this.typeEventService.get();
+      function: async ({ message, admin }) => {
+        const [typeEvents] = await this.typeEventService.get(admin);
         const typeEvent = typeEvents[parseInt(message) - 1];
         if (!typeEvent)
           return {
@@ -475,17 +484,18 @@ export class WppHandlerService {
     };
   }
 
-  private getAvailabilityChooseCalendar(): Answer {
+  private getAvailabilityChooseCalendar(admin: Admin): Answer {
     return {
       previousMessageId: 'welcome_answer',
       keywords: ['^1$'],
       messageId: 'get_availability_calendar',
       fallback: () => ({
         messageId: 'get_availability_calendar',
-        nextAnswer: this.getAvailabilityChooseCalendar(),
+        nextAnswer: this.getAvailabilityChooseCalendar(admin),
         response: 'Lo siento, no pude entenderte.',
       }),
-      function: async () => this.chooseCalendar('get_availability_calendar'),
+      function: async () =>
+        this.chooseCalendar('get_availability_calendar', admin),
     };
   }
 
@@ -499,7 +509,7 @@ export class WppHandlerService {
         nextAnswer: this.getAvailabilityDate(),
         response: 'Lo siento, no pude entenderte.',
       }),
-      function: async ({ message, buffer }) => {
+      function: async ({ message, buffer, admin }) => {
         if (message == 'cancelar') {
           return {
             resetConversation: true,
@@ -510,17 +520,20 @@ export class WppHandlerService {
 
         let calendar: Calendar = null;
         if (message.length > 0) {
-          const [calendars] = await this.calendarService.get();
+          const [calendars] = await this.calendarService.get(admin);
           calendar = calendars[parseInt(message) - 1];
         }
 
         if (!calendar)
-          calendar = await this.calendarService.getOne(buffer.calendarId);
+          calendar = await this.calendarService.getOne(
+            buffer.calendarId,
+            admin,
+          );
 
         if (!calendar) {
           return {
             response: 'Calendario no encontrado',
-            nextAnswer: this.getAvailabilityChooseCalendar(),
+            nextAnswer: this.getAvailabilityChooseCalendar(admin),
             messageId: 'get_availability_date',
           };
         }
@@ -547,10 +560,11 @@ export class WppHandlerService {
         nextAnswer: this.getAvailabilityTypeEvent(),
         response: 'Lo siento, no pude entenderte.',
       }),
-      function: async ({ message, buffer }) => {
+      function: async ({ message, buffer, admin }) => {
         const response = await this.chooseTypeEvent(
           'get_availability_type_event',
           buffer,
+          admin,
         );
         const dateRegExp = datesRegExp.find(({ regExp }) =>
           new RegExp(regExp).test(message),
@@ -579,11 +593,13 @@ export class WppHandlerService {
     calendarId: string,
     date: DateTime,
     typeEvent: TypeEvent,
+    admin: Admin,
   ): Promise<string> {
     const { schedules } = await this.availabilityService.getAvailability(
       calendarId,
       date,
       typeEvent.id,
+      admin,
     );
     return schedules
       .reduce(
@@ -608,6 +624,7 @@ export class WppHandlerService {
     to: string,
     userId: string,
     typeEventId: string,
+    admin: Admin,
   ): Promise<boolean> {
     const startDateTime = DateTime.fromFormat(
       `${date.toFormat('dd/MM/yyyy')} ${from}`,
@@ -618,14 +635,17 @@ export class WppHandlerService {
       'dd/MM/yyyy HH:mm',
     );
 
-    const event = await this.eventServixe.create({
-      calendarId,
-      description,
-      startDateTime: startDateTime.toJSDate(),
-      endDateTime: endDateTime.toJSDate(),
-      userId,
-      typeEventId,
-    });
+    const event = await this.eventServixe.create(
+      {
+        calendarId,
+        description,
+        startDateTime: startDateTime.toJSDate(),
+        endDateTime: endDateTime.toJSDate(),
+        userId,
+        typeEventId,
+      },
+      admin,
+    );
     return !!event;
   }
 
@@ -641,8 +661,9 @@ export class WppHandlerService {
 
   private async chooseCalendar(
     messageId: string,
+    admin: Admin,
   ): Promise<AnswerFunctionOutput> {
-    const [calendars] = await this.calendarService.get();
+    const [calendars] = await this.calendarService.get(admin);
     const calendarString = calendars
       .reduce((acc, el, index) => `${acc}\n${index + 1}_ ${el.name}`, '')
       .slice(1);
@@ -655,8 +676,9 @@ export class WppHandlerService {
   private async chooseTypeEvent(
     messageId: string,
     buffer: any,
+    admin: Admin,
   ): Promise<AnswerFunctionOutput> {
-    const [typeOfEvents] = await this.typeEventService.get();
+    const [typeOfEvents] = await this.typeEventService.get(admin);
     const typeOfEventsString = typeOfEvents
       .reduce((acc, el, index) => `${acc}\n${index + 1}_ ${el.name}`, '')
       .slice(1);
@@ -668,14 +690,13 @@ export class WppHandlerService {
   }
 
   private async newEventNotification(
-    adminId: string,
+    admin: Admin,
     name: string,
     date: DateTime,
     timeFrom: string,
     timeTo: string,
     sendMessage: (from: string, response: string) => any,
   ): Promise<void> {
-    const admin = await this.adminService.getOne(adminId);
     if (admin) {
       sendMessage(
         admin.wppId,
@@ -734,17 +755,17 @@ export class WppHandlerService {
     matchAnswer: Answer,
     wppId: string,
     userMemory: MemoryStatus,
-    adminId: string,
     message: string,
     sendMessage: (from: string, response: string) => any,
+    admin: Admin,
   ): Promise<string[]> {
     const response: AnswerFunctionOutput = await matchAnswer.function({
       buffer: userMemory.buffer,
       message,
       messageId: matchAnswer.messageId,
       wppId,
-      adminId,
       sendMessage,
+      admin,
     });
     let responses: string[] = [];
     if (response) {
@@ -759,9 +780,9 @@ export class WppHandlerService {
           response.nextAnswer,
           wppId,
           userMemory,
-          adminId,
           message,
           sendMessage,
+          admin,
         );
         responses = [...responses, ...nextResponses];
       }
@@ -786,8 +807,9 @@ export class WppHandlerService {
   private async getUser(
     wppId: string,
     userMemory: MemoryStatus,
+    admin: Admin,
   ): Promise<{ user?: User; answer?: Answer }> {
-    const user = await this.userService.getOneBy('wppId', wppId);
+    const user = await this.userService.getOneBy('wppId', wppId, admin);
     if (!user && userMemory.messageIds.at(-1) != 'user_not_found') {
       return { answer: this.welcome(this.userNotFound()) };
     }
@@ -797,9 +819,9 @@ export class WppHandlerService {
   private async getMatchAnswer(
     userResponse: string,
     userMemory: MemoryStatus,
-    connectionString: string,
+    admin: Admin,
   ): Promise<Answer> {
-    const answers = this.getAnswers(connectionString);
+    const answers = this.getAnswers(admin);
     const lastMessageId = userMemory.messageIds.at(-1);
     const answersWithPreviousMessageId = answers.filter(
       (answer) =>
@@ -837,16 +859,12 @@ export class WppHandlerService {
     const admin = await this.adminService.getOne(adminId);
     if (!admin) throw new NotFoundException('error.ADMIN_NOT_FOUND');
     const userMemory = this.getUserMemory(wppId);
-    const { user, answer } = await this.getUser(wppId, userMemory);
+    const { user, answer } = await this.getUser(wppId, userMemory, admin);
     let matchAnswer: Answer;
     if (answer) {
       matchAnswer = answer;
     } else {
-      matchAnswer = await this.getMatchAnswer(
-        message,
-        userMemory,
-        admin.connectString,
-      );
+      matchAnswer = await this.getMatchAnswer(message, userMemory, admin);
     }
 
     if (matchAnswer) {
@@ -854,9 +872,9 @@ export class WppHandlerService {
         matchAnswer,
         wppId,
         userMemory,
-        adminId,
         message,
         sendMessage,
+        admin,
       );
     }
   }

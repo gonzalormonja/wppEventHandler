@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
-import { CalendarOutput } from 'src/calendar/models/calendar.output';
-import { Status } from 'src/models/status.enum';
-import { UserOutput } from 'src/user/models/user.output';
+import { CalendarOutput } from '../../calendar/models/calendar.output';
+import { Status } from '../../models/status.enum';
+import { UserOutput } from '../../user/models/user.output';
 
 export class EventOutput {
   @Expose()

@@ -1,14 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { CalendarService } from 'src/calendar/calendar.service';
+import { CalendarService } from '../calendar/calendar.service';
 import { DateTime } from 'luxon';
 import { AvailabilityOutput } from './models/availability.output';
 import * as uuid from 'uuid';
-import setTimeFromMinutes from 'src/utils/set-time-from-minutes';
-import { GetEventService } from 'src/get-event/get-event.service';
-import { ScheduleOutput } from 'src/models/schedule.output';
-import convertHourToMinute from 'src/utils/convert-hour-to-minute';
-import { TypeEvent } from 'src/entities/type-event.entity';
-import { TypeEventService } from 'src/type-event/type-event.service';
+import setTimeFromMinutes from '../utils/set-time-from-minutes';
+import { GetEventService } from '../get-event/get-event.service';
+import { ScheduleOutput } from '../models/schedule.output';
+import convertHourToMinute from '../utils/convert-hour-to-minute';
+import { TypeEvent } from '../entities/type-event.entity';
+import { TypeEventService } from '../type-event/type-event.service';
+import { Admin } from 'src/entities/admin.entity';
 
 @Injectable()
 export class AvailabilityService {
@@ -22,10 +23,11 @@ export class AvailabilityService {
     calendarId: string,
     date: DateTime,
     typeEventId: string,
+    admin: Admin,
   ): Promise<AvailabilityOutput> {
-    const calendar = await this.calendarService.getOne(calendarId);
+    const calendar = await this.calendarService.getOne(calendarId, admin);
     if (!calendar) throw new NotFoundException('error.CALENDAR_NOT_FOUND');
-    const typeEvent = await this.typeEventService.getOne(typeEventId);
+    const typeEvent = await this.typeEventService.getOne(typeEventId, admin);
     if (!typeEvent) throw new NotFoundException('error.TYPE_EVENT_NOT_FOUND');
     const inputWeekday = date.weekday;
     const dateSchedules = calendar.dateSchedules
@@ -159,12 +161,14 @@ export class AvailabilityService {
     endDate: DateTime,
     calendarId: uuid,
     typeEVentId: string,
+    admin: Admin,
   ): Promise<boolean> {
     //todo validate if event it is more one day
     const { schedules } = await this.getAvailability(
       calendarId,
       startDate.startOf('day'),
       typeEVentId,
+      admin,
     );
 
     const matchedSchedule = schedules.find((schedule) => {

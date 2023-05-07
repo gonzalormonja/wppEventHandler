@@ -4,16 +4,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Calendar } from 'src/entities/calendar.entity';
+import { Calendar } from '../entities/calendar.entity';
 import { Not, Repository } from 'typeorm';
 import { CreateCalendar } from './models/create-calendar.input';
 import { DayScheduleInput } from './models/day-schedule.input';
-import { DaySchedule } from 'src/entities/day-schedule.entity';
+import { DaySchedule } from '../entities/day-schedule.entity';
 import { UpdateCalendar } from './models/update-calendar.input';
 import { DateScheduleInput } from './models/date-schedule.input';
-import { DateSchedule } from 'src/entities/date-schedule.entity';
-import convertHourToMinute from 'src/utils/convert-hour-to-minute';
+import { DateSchedule } from '../entities/date-schedule.entity';
+import convertHourToMinute from '../utils/convert-hour-to-minute';
 import * as uuid from 'uuid';
+import { Admin } from 'src/entities/admin.entity';
 
 @Injectable()
 export class CalendarService {
@@ -22,8 +23,8 @@ export class CalendarService {
     private readonly calendarModel: Repository<Calendar>,
   ) {}
 
-  public async create({ daySchedules, name }: CreateCalendar) {
-    const calendar = this.calendarModel.create({ id: uuid.v4(), name });
+  public async create({ daySchedules, name }: CreateCalendar, admin: Admin) {
+    const calendar = this.calendarModel.create({ id: uuid.v4(), name, admin });
 
     if (daySchedules)
       calendar.daySchedules = daySchedules.map((day) =>
@@ -55,8 +56,9 @@ export class CalendarService {
   public async update(
     id: string,
     { daySchedules, ...calendarInput }: UpdateCalendar,
+    admin: Admin,
   ): Promise<Calendar> {
-    const calendar = await this.getOne(id);
+    const calendar = await this.getOne(id, admin);
     if (!calendar) throw new NotFoundException('error.CALENDAR_NOT_FOUND');
     Object.assign(calendar, calendarInput);
     if (daySchedules && daySchedules.length > 0)
@@ -70,8 +72,9 @@ export class CalendarService {
   public async addDate(
     calendarId: string,
     dateScheduleInput: DateScheduleInput,
+    admin: Admin,
   ): Promise<Calendar> {
-    const calendar = await this.getOne(calendarId);
+    const calendar = await this.getOne(calendarId, admin);
     if (!calendar) throw new NotFoundException('error.CALENDAR_NOT_FOUND');
     const dateSchedule = this.parseDateSchedule(dateScheduleInput);
     calendar.dateSchedules = [...calendar.dateSchedules, dateSchedule];
@@ -81,8 +84,9 @@ export class CalendarService {
   public async removeDate(
     calendarId: string,
     dateScheduleId: string,
+    admin: Admin,
   ): Promise<Calendar> {
-    const calendar = await this.getOne(calendarId);
+    const calendar = await this.getOne(calendarId, admin);
     if (!calendar) throw new NotFoundException('error.CALENDAR_NOT_FOUND');
     calendar.dateSchedules = calendar.dateSchedules.filter(
       (date) => date.id != dateScheduleId,
@@ -90,14 +94,15 @@ export class CalendarService {
     return this.calendarModel.save(calendar);
   }
 
-  public async delete(id: string): Promise<void> {
-    const calendar = await this.getOne(id);
+  public async delete(id: string, admin: Admin): Promise<void> {
+    const calendar = await this.getOne(id, admin);
     if (!calendar) throw new NotFoundException('error.CALENDAR_NOT_FOUND');
     await this.calendarModel.softRemove(calendar);
   }
 
-  public async get(): Promise<[Calendar[], number]> {
+  public async get(admin: Admin): Promise<[Calendar[], number]> {
     return this.calendarModel.findAndCount({
+      where: { admin: { id: admin.id } },
       relations: ['dateSchedules', 'daySchedules'],
       order: {
         daySchedules: {
@@ -107,18 +112,22 @@ export class CalendarService {
     });
   }
 
-  public async getOne(id: string): Promise<Calendar> {
+  public async getOne(id: string, admin: Admin): Promise<Calendar> {
     if (!id) return;
     return this.calendarModel.findOne({
       relations: ['dateSchedules', 'daySchedules'],
-      where: { id },
+      where: { id, admin: { id: admin.id } },
     });
   }
 
-  public async getOneBy(column: string, value: string): Promise<Calendar> {
+  public async getOneBy(
+    column: string,
+    value: string,
+    admin: Admin,
+  ): Promise<Calendar> {
     return this.calendarModel.findOne({
       relations: ['dateSchedules', 'daySchedules'],
-      where: { [column]: value },
+      where: { [column]: value, admin: { id: admin.id } },
     });
   }
 

@@ -3,6 +3,7 @@ import { BaseEntity } from './base.entity';
 import { Status } from '../models/status.enum';
 import { Calendar } from './calendar.entity';
 import { User } from './user.entity';
+import { Admin } from './admin.entity';
 
 @Entity()
 export class Event extends BaseEntity {
@@ -18,4 +19,6 @@ export class Event extends BaseEntity {
   calendar: Calendar;
   @ManyToOne(() => User, (user) => user.events)
   user: User;
+  @ManyToOne(() => Admin)
+  admin: Admin;
 }

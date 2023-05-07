@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DateTime } from 'luxon';
-import { Event } from 'src/entities/event.entity';
+import { Event } from '../entities/event.entity';
 import {
   FindOptionsWhere,
   LessThanOrEqual,
@@ -17,7 +17,7 @@ export class GetEventService {
   ) {}
 
   public async get(
-    userId?: uuid,
+    userId: uuid,
     calendarId?: uuid,
     startDate?: DateTime,
     endDate?: DateTime,

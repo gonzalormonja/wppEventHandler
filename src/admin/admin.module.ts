@@ -1,7 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Admin } from 'src/entities/admin.entity';
+import { Admin } from '../entities/admin.entity';
 
 @Module({
   imports: [forwardRef(() => TypeOrmModule.forFeature([Admin]))],

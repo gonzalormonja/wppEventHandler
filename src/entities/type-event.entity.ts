@@ -1,5 +1,6 @@
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, ManyToOne } from 'typeorm';
 import { BaseEntity } from './base.entity';
+import { Admin } from './admin.entity';
 
 @Entity()
 export class TypeEvent extends BaseEntity {
@@ -7,4 +8,6 @@ export class TypeEvent extends BaseEntity {
   name: string;
   @Column({ type: 'int', nullable: false })
   durationInMinutes: number;
+  @ManyToOne(() => Admin)
+  admin: Admin;
 }

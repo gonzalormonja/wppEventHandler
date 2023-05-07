@@ -1,13 +1,12 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { EventService } from './event.service';
-import { Event } from 'src/entities/event.entity';
+import { Event } from '../entities/event.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { CalendarModule } from 'src/calendar/calendar.module';
+import { CalendarModule } from '../calendar/calendar.module';
 import { EventController } from './event.controller';
-import { UserModule } from 'src/user/user.module';
-import { AvailabilityModule } from 'src/availability/availability.module';
-import { GetEventModule } from 'src/get-event/get-event.module';
-import { TypeEventModule } from 'src/type-event/type-event.module';
+import { UserModule } from '../user/user.module';
+import { AvailabilityModule } from '../availability/availability.module';
+import { TypeEventModule } from '../type-event/type-event.module';
 
 @Module({
   imports: [
@@ -15,7 +14,6 @@ import { TypeEventModule } from 'src/type-event/type-event.module';
     CalendarModule,
     UserModule,
     AvailabilityModule,
-    GetEventModule,
     TypeEventModule,
   ],
   providers: [EventService],

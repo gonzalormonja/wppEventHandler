@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Expose, Transform } from 'class-transformer';
-import convertMinuteToHour from 'src/utils/convert-minute-to-hour';
+import convertMinuteToHour from '../utils/convert-minute-to-hour';
 
 export class ScheduleOutput {
   @Expose()

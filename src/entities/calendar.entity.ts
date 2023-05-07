@@ -1,8 +1,9 @@
-import { Column, Entity, OneToMany } from 'typeorm';
+import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { DateSchedule } from './date-schedule.entity';
 import { Event } from './event.entity';
 import { DaySchedule } from './day-schedule.entity';
+import { Admin } from './admin.entity';
 
 @Entity()
 export class Calendar extends BaseEntity {
@@ -18,4 +19,6 @@ export class Calendar extends BaseEntity {
   daySchedules: DaySchedule[];
   @OneToMany(() => Event, (event) => event.calendar)
   events: Event[];
+  @ManyToOne(() => Admin)
+  admin: Admin;
 }

@@ -1,6 +1,4 @@
 import { Module, ValidationPipe } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { AvailabilityModule } from './availability/availability.module';
 import { EventModule } from './event/event.module';
 import { CalendarModule } from './calendar/calendar.module';
@@ -10,13 +8,22 @@ import { WppHandlerModule } from './wpp-handler/wpp-handler.module';
 import options from './config/orm';
 import { AcceptLanguageResolver, I18nModule, QueryResolver } from 'nestjs-i18n';
 import * as path from 'path';
-import { APP_PIPE } from '@nestjs/core';
+import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { GetEventModule } from './get-event/get-event.module';
 import { AdminModule } from './admin/admin.module';
 import { TypeEventModule } from './type-event/type-event.module';
+import { AuthModule } from './auth/auth.module';
+import { AccessTokenGuard } from './interceptors/guards/accessToken.guard';
+import { AccessTokenStrategy } from './auth/strategies/accessToken.strategy';
+import { RefreshTokenStrategy } from './auth/strategies/refreshToken.strategy';
+import { JwtService } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
 
 @Module({
   imports: [
+    PassportModule.register({
+      property: 'admin',
+    }),
     I18nModule.forRoot({
       fallbackLanguage: 'en',
       fallbacks: {
@@ -41,16 +48,22 @@ import { TypeEventModule } from './type-event/type-event.module';
     WppHandlerModule,
     AdminModule,
     TypeEventModule,
+    AuthModule,
   ],
-  controllers: [AppController],
   providers: [
-    AppService,
     {
       provide: APP_PIPE,
       useValue: new ValidationPipe({
         whitelist: true,
       }),
     },
+    {
+      provide: APP_GUARD,
+      useClass: AccessTokenGuard,
+    },
+    AccessTokenStrategy,
+    RefreshTokenStrategy,
+    JwtService,
   ],
 })
 export class AppModule {}

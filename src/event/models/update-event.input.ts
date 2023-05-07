@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsDate, IsEnum, IsOptional, IsString } from 'class-validator';
-import { Status } from 'src/models/status.enum';
+import { Status } from '../../models/status.enum';
 
 export class UpdateEvent {
   @ApiPropertyOptional()
