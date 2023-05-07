@@ -237,8 +237,10 @@ export class WppHandlerService {
         keywords: ['^4$'],
         messageId: 'get_events',
         function: async ({ wppId, admin }) => {
-          const user = await this.userService.getOneBy('wppId', wppId, admin);
-          const [events] = await this.getEventService.get(user.id);
+          let user: User = null;
+          if (admin.wppId !== wppId)
+            user = await this.userService.getOneBy('wppId', wppId, admin);
+          const [events] = await this.getEventService.get(admin.id, user?.id);
           const eventsString = events.reduce((acc, el) => {
             const date = DateTime.fromJSDate(
               new Date(el.startDateTime),
@@ -284,8 +286,10 @@ export class WppHandlerService {
             messageId: 'remove_event_confirm',
           };
         }
-        const user = await this.userService.getOneBy('wppId', wppId, admin);
-        const [events] = await this.getEventService.get(user.id);
+        let user: User = null;
+        if (admin.wppId !== wppId)
+          user = await this.userService.getOneBy('wppId', wppId, admin);
+        const [events] = await this.getEventService.get(admin.id, user?.id);
         let event = events[parseInt(message) - 1];
 
         if (!event) {
@@ -332,8 +336,10 @@ export class WppHandlerService {
         response: 'Lo siento, no pude entenderte.',
       }),
       function: async ({ wppId, admin }) => {
-        const user = await this.userService.getOneBy('wppId', wppId, admin);
-        const [events] = await this.getEventService.get(user.id);
+        let user: User = null;
+        if (admin.wppId !== wppId)
+          user = await this.userService.getOneBy('wppId', wppId, admin);
+        const [events] = await this.getEventService.get(admin.id, user?.id);
         const eventsString = events.reduce((acc, el, index) => {
           const date = DateTime.fromJSDate(new Date(el.startDateTime)).toFormat(
             'dd/MM/yyyy',
@@ -385,6 +391,14 @@ export class WppHandlerService {
       keywords: ['^\\d{1,2}$', 'cancelar'],
       messageId: 'add_event_type_event',
       function: async ({ message, buffer, admin }) => {
+        if (message == 'cancelar') {
+          return {
+            resetConversation: true,
+            nextAnswer: this.welcomeAnswer(),
+            messageId: 'add_event_type_event',
+          };
+        }
+
         let calendar: Calendar = null;
         if (message.length > 0) {
           const [calendars] = await this.calendarService.get(admin);

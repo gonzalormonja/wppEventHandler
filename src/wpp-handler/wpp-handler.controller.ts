@@ -76,7 +76,7 @@ export class WppHandlerController {
     return this.wppHandlerService.messageHandler(
       message,
       '4',
-      '63e6d0cc-56c1-4928-8122-98d390f2979e',
+      '812c42a4-a834-4ece-aa1c-64c6f76a6b2a',
       (from, response) => console.log(from, response),
     );
   }

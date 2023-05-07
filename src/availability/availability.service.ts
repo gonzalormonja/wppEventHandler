@@ -45,6 +45,7 @@ export class AvailabilityService {
       calendarId,
       date,
       schedules,
+      admin,
     );
 
     schedules = this.groupSchedules(schedules);
@@ -79,8 +80,10 @@ export class AvailabilityService {
     calendarId: uuid,
     date: DateTime,
     schedules: ScheduleOutput[],
+    admin: Admin,
   ): Promise<ScheduleOutput[]> {
     const [events] = await this.getEventService.get(
+      admin.id,
       null,
       calendarId,
       date.startOf('day'),

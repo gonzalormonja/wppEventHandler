@@ -17,16 +17,25 @@ export class GetEventService {
   ) {}
 
   public async get(
-    userId: uuid,
+    adminId: uuid,
+    userId?: uuid,
     calendarId?: uuid,
     startDate?: DateTime,
     endDate?: DateTime,
   ) {
     let query: FindOptionsWhere<Event> = {
-      user: {
-        id: userId,
+      admin: {
+        id: adminId,
       },
     };
+    if (userId) {
+      query = {
+        ...query,
+        user: {
+          id: userId,
+        },
+      };
+    }
     if (calendarId)
       query = {
         ...query,
