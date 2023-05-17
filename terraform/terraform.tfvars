@@ -1,0 +1,6 @@
+ssh_key_path      = "/home/gonzalo/.ssh/id_rsa.pub"
+project_name      = "wppEvent"
+region_name       = "sa-east-1"
+availability_zone = "sa-east-1a"
+vpc_id            = "vpc-0021634edfe997455"
+instance_type     = "t2.micro"

@@ -40,3 +40,5 @@ lerna-debug.log*
 /.vscode
 
 .env
+
+terraform/.terraform/*
