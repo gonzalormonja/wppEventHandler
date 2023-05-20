@@ -4,6 +4,7 @@ variable "availability_zone" {}
 variable "vpc_id" {}
 variable "instance_type" {}
 variable "region_name" {}
+variable "github_token" {}
 
 provider "aws" {
   region = var.region_name
@@ -91,7 +92,9 @@ resource "aws_security_group" "allow_api" {
 
 // 16KB max file size
 data "template_file" "userdata" {
-  template = file("${path.module}/userdata.sh")
+  template = templatefile("${path.module}/userdata.sh", {
+    github_token = var.github_token
+  })
 }
 
 resource "aws_instance" "api" {

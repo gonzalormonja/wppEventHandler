@@ -14,8 +14,8 @@ sudo mkdir /mnt/wpp_event_volume
 sudo mount /dev/xvdc /mnt/wpp_event_volume
 echo "/dev/xvdc  /mnt/wpp_event_volume    xfs   defaults 0 2" >> /etc/fstab
 cd /mnt/wpp_event_volume
-sudo chmod 777 .
-git clone https://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@github.com/gonzalormonja/wppEventHandler.git
+sudo chmod 755 .
+git clone https://${github_token}@github.com/gonzalormonja/wppEventHandler.git
 mv wppEventHandler/* .
 sudo echo '
 POSTGRES_PORT="5432"
