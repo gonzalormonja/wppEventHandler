@@ -14,6 +14,8 @@ on:
 jobs:
   avoid_redundancy:
     runs-on: ubuntu-22.04
+    permissions:
+      actions: write
     steps:
       - name: Cancel previous workflows
         uses: styfle/cancel-workflow-action@0.9.1
