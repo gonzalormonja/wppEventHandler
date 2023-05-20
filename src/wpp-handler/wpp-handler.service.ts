@@ -97,7 +97,7 @@ export class WppHandlerService {
         },
       },
       {
-        function: async ({ message, buffer, wppId, admin }) => {
+        function: async ({ message, wppId, admin }) => {
           await this.userService.create(
             {
               name: message,
@@ -873,7 +873,7 @@ export class WppHandlerService {
     const admin = await this.adminService.getOne(adminId);
     if (!admin) throw new NotFoundException('error.ADMIN_NOT_FOUND');
     const userMemory = this.getUserMemory(wppId);
-    const { user, answer } = await this.getUser(wppId, userMemory, admin);
+    const { answer } = await this.getUser(wppId, userMemory, admin);
     let matchAnswer: Answer;
     if (answer) {
       matchAnswer = answer;
