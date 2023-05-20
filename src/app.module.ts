@@ -18,6 +18,7 @@ import { AccessTokenStrategy } from './auth/strategies/accessToken.strategy';
 import { RefreshTokenStrategy } from './auth/strategies/refreshToken.strategy';
 import { JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -65,5 +66,6 @@ import { PassportModule } from '@nestjs/passport';
     RefreshTokenStrategy,
     JwtService,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}
