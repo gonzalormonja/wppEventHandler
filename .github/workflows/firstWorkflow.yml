@@ -72,8 +72,6 @@ jobs:
   #       run: yarn test
 
   deploy:
-    needs:
-      - test
     runs-on: ubuntu-22.04
     steps:
       - name: Build & Deploy
