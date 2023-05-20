@@ -81,7 +81,7 @@ jobs:
           name: id_rsa
           known_hosts: unnecesary
       - name: ssh
-        run: ssh -o StrictHostKeyChecking=no ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} 'cd /mnt/wppEventHandler && git checkout master && git reset --hard && git pull && yarn'
+        run: ssh -o StrictHostKeyChecking=no ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} 'cd /mnt/wpp_event_volume && git checkout master && git reset --hard && git pull'
 
   # deploy:
   #   runs-on: ubuntu-22.04

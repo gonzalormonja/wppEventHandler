@@ -10,14 +10,14 @@ sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubun
 sudo apt -y update
 sudo apt -y install docker-ce
 sudo mkfs -t xfs /dev/xvdc
-sudo mkdir /mnt/wpp_event_volume
-sudo mount /dev/xvdc /mnt/wpp_event_volume
-echo "/dev/xvdc  /mnt/wpp_event_volume    xfs   defaults 0 2" >> /etc/fstab
-cd /mnt/wpp_event_volume
-sudo chmod 755 .
+sudo mkdir /mnt/wppEventHandler
+sudo mount /dev/xvdc /mnt/wppEventHandler
+echo "/dev/xvdc  /mnt/wppEventHandler    xfs   defaults 0 2" >> /etc/fstab
+cd /mnt
+sudo chmod 777 .
 git clone https://${github_token}@github.com/gonzalormonja/wppEventHandler.git
-mv wppEventHandler/* .
-git config --global --add safe.directory /mnt/wpp_event_volume
+cd wppEventHandler
+git config --global --add safe.directory /mnt/wppEventHandler
 sudo echo '
 POSTGRES_PORT="5432"
 POSTGRES_HOST="wpp_bot_event_booking_database"
