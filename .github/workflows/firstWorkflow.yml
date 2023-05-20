@@ -96,3 +96,5 @@ jobs:
           TARGET: /mnt/wpp_event_volume
           # EXCLUDE: "/dist/, /node_modules/"
           SOURCE: '../../'
+          SCRIPT_AFTER: |
+            mv . ../../
