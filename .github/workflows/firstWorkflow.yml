@@ -34,6 +34,8 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile --immutable --immutable-cache --check-cache
   lint:
+    needs:
+      - install_dependencies
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -48,6 +50,8 @@ jobs:
       - name: Run lint
         run: yarn lint
   build:
+    needs:
+      - install_dependencies
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
