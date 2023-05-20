@@ -74,14 +74,14 @@ jobs:
   deploy:
     runs-on: ubuntu-22.04
     steps:
-    - name: Install SSH key
-      uses: shimataro/ssh-key-action@v2
-      with:
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        name: id_rsa
-        known_hosts: unnecesary
-    - name: ssh
-      run: ssh -o StrictHostKeyChecking=no ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} 'ls'
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          name: id_rsa
+          known_hosts: unnecesary
+      - name: ssh
+        run: ssh -o StrictHostKeyChecking=no ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} 'cd /mnt/wpp_event_volume && git checkout master && git pull && yarn'
 
   # deploy:
   #   runs-on: ubuntu-22.04
