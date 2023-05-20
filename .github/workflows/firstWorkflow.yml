@@ -21,21 +21,7 @@ jobs:
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
-  install_dependencies:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          ref: 'master'
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '16.18'
-          cache: 'yarn'
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile --immutable
   lint:
-    needs:
-      - install_dependencies
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -44,14 +30,11 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '16.18'
-          cache: 'yarn'
       - name: Install dependencies
         run: yarn install --frozen-lockfile --immutable
       - name: Run lint
         run: yarn lint
   build:
-    needs:
-      - install_dependencies
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -60,7 +43,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '16.18'
-          cache: 'yarn'
       - name: Install dependencies
         run: yarn install --frozen-lockfile --immutable
       - name: Build
@@ -80,7 +62,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '16.18'
-          cache: 'yarn'
       - name: Install dependencies
         run: yarn install --frozen-lockfile --immutable
       - uses: actions/download-artifact@v2
