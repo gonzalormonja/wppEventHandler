@@ -83,4 +83,4 @@ jobs:
           name: id_rsa
           known_hosts: unnecessary
       - name: ssh
-        run: ssh -o StrictHostKeyChecking=no ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} 'cd /mnt/wppEventHandler && git config --global --add safe.directory . &&  git checkout master && git reset --hard && git pull'
+        run: ssh -o StrictHostKeyChecking=no ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} 'cd /mnt/wppEventHandler && git config --global --add safe.directory /mnt/wppEventHandler &&  git checkout master && git reset --hard && git pull'
