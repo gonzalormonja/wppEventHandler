@@ -16,6 +16,6 @@ jobs:
         with:
           node-version: '16.18'
       - name: Install dependencies
-        run: yarn --offline --ignore-optional
+        run: yarn
       - name: Run lint
         run: yarn lint
