@@ -1,0 +1,88 @@
+name: deploy_with_ssh
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+
+jobs:
+  avoid_redundancy:
+    runs-on: ubuntu-22.04
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel previous workflows
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: 'master'
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16.18'
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --immutable
+      - name: Run lint
+        run: yarn lint
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: 'master'
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16.18'
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --immutable
+      - name: Build
+        run: yarn build
+      - uses: actions/upload-artifact@v2
+        with:
+          name: dist
+          path: dist
+  test:
+    needs:
+      - build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: 'master'
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16.18'
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --immutable
+      - uses: actions/download-artifact@v2
+        with:
+          name: dist
+          path: dist
+      - name: Test
+        run: yarn test
+
+  deploy:
+    needs:
+      - test
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Install SSH key
+        if: ${{ github.event_name == 'push' }}
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          name: id_rsa
+          known_hosts: unnecessary
+      - name: ssh
+        if: ${{ github.event_name == 'push' }}
+        run: ssh ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} 'cd /mnt/wppEventHandler && git checkout master && git reset --hard && git pull'
