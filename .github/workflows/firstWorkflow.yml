@@ -89,11 +89,10 @@ jobs:
       - name: Install SSH Key
         uses: shimataro/ssh-key-action@v2
         with:
-          key: {%- raw -%} ${{ secrets.SSH_PRIVATE_KEY }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           known_hosts: unnecessary
       - name: Deploy with rsync
         run: rsync -avz ../../. ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }}:/mnt/wpp_event_volume$
-        
       # - name: Deploy to Staging server
       #   if: ${{ github.event_name == 'push' }}
       #   uses: easingthemes/ssh-deploy@main
