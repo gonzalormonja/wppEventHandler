@@ -71,26 +71,26 @@ jobs:
   #     - name: Test
   #       run: yarn test
 
-deploy:
-  needs:
-    - test
-  runs-on: ubuntu-22.04
-  steps:
-    - name: Build & Deploy
-      env:
-        PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        HOSTNAME: ${{secrets.REMOTE_HOST}}
-        USER_NAME: ${secrets.REMOTE_USER}
+  deploy:
+    needs:
+      - test
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Build & Deploy
+        env:
+          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOSTNAME: ${{secrets.REMOTE_HOST}}
+          USER_NAME: ${secrets.REMOTE_USER}
 
-      run: |
-        echo "$PRIVATE_KEY" > private_key && chmod 600 private_key
-        ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} '
+        run: |
+          echo "$PRIVATE_KEY" > private_key && chmod 600 private_key
+          ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} '
 
-            # Now we have got the access of EC2 and we will start the deploy .
-            cd /mnt/wpp_event_volume &&
-            git checkout master &&
-            git pull &&
-            yarn'
+              # Now we have got the access of EC2 and we will start the deploy .
+              cd /mnt/wpp_event_volume &&
+              git checkout master &&
+              git pull &&
+              yarn'
   # deploy:
   # needs:
   #   - test
