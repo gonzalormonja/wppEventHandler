@@ -82,6 +82,8 @@ jobs:
         known_hosts: unnecesary
     - name: ssh
       run: ssh -o StrictHostKeyChecking=no ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }}
+    - name: Deploy with rsync
+      run: rsync -o StrictHostKeyChecking=no -avz ./dist/ ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }}:/mnt/wpp_event_volume
 
   # deploy:
   #   runs-on: ubuntu-22.04
