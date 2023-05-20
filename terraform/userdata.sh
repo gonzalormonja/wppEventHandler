@@ -17,6 +17,7 @@ cd /mnt/wpp_event_volume
 sudo chmod 755 .
 git clone https://${github_token}@github.com/gonzalormonja/wppEventHandler.git
 mv wppEventHandler/* .
+git config --global --add safe.directory /mnt/wpp_event_volume
 sudo echo '
 POSTGRES_PORT="5432"
 POSTGRES_HOST="wpp_bot_event_booking_database"
