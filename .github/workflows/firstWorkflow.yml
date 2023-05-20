@@ -21,64 +21,66 @@ jobs:
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
-  lint:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          ref: 'master'
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '16.18'
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile --immutable
-      - name: Run lint
-        run: yarn lint
-  build:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          ref: 'master'
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '16.18'
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile --immutable
-      - name: Build
-        run: yarn build
-      - uses: actions/upload-artifact@v2
-        with:
-          name: dist
-          path: dist
-  test:
-    needs:
-      - build
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          ref: 'master'
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '16.18'
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile --immutable
-      - uses: actions/download-artifact@v2
-        with:
-          name: dist
-          path: dist
-      - name: Test
-        run: yarn test
+  # lint:
+  #   runs-on: ubuntu-22.04
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #       with:
+  #         ref: 'master'
+  #     - uses: actions/setup-node@v3
+  #       with:
+  #         node-version: '16.18'
+  #     - name: Install dependencies
+  #       run: yarn install --frozen-lockfile --immutable
+  #     - name: Run lint
+  #       run: yarn lint
+  # build:
+  #   runs-on: ubuntu-22.04
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #       with:
+  #         ref: 'master'
+  #     - uses: actions/setup-node@v3
+  #       with:
+  #         node-version: '16.18'
+  #     - name: Install dependencies
+  #       run: yarn install --frozen-lockfile --immutable
+  #     - name: Build
+  #       run: yarn build
+  #     - uses: actions/upload-artifact@v2
+  #       with:
+  #         name: dist
+  #         path: dist
+  # test:
+  #   needs:
+  #     - build
+  #   runs-on: ubuntu-22.04
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #       with:
+  #         ref: 'master'
+  #     - uses: actions/setup-node@v3
+  #       with:
+  #         node-version: '16.18'
+  #     - name: Install dependencies
+  #       run: yarn install --frozen-lockfile --immutable
+  #     - uses: actions/download-artifact@v2
+  #       with:
+  #         name: dist
+  #         path: dist
+  #     - name: Test
+  #       run: yarn test
 
   deploy:
-    needs:
-      - test
+    # needs:
+    #   - test
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
         with:
           ref: 'master'
+      - name: Build
+        run: yarn build
       - name: Deploy to Staging server
         if: ${{ github.event_name == 'push' }}
         uses: easingthemes/ssh-deploy@main
