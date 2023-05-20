@@ -92,6 +92,7 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+          ARGS: "-rlgoDzvc -i"
           REMOTE_USER: ${{ secrets.REMOTE_USER }}
           TARGET: /mnt/wpp_event_volume
           # EXCLUDE: "/dist/, /node_modules/"
