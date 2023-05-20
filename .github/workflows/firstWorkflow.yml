@@ -71,38 +71,51 @@ jobs:
   #     - name: Test
   #       run: yarn test
 
-  deploy:
-    # needs:
-    #   - test
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          ref: 'master'
-      # - uses: actions/setup-node@v3
-      #   with:
-      #     node-version: '16.18'
-      # - name: Install dependencies
-      #   run: yarn install --frozen-lockfile --immutable
-      # - name: Build
-      #   run: yarn build
-      - name: Install SSH Key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          known_hosts: unnecessary
-      - name: Deploy with rsync
-        run: rsync -avz ../../. ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }}:/mnt/wpp_event_volume$
-      # - name: Deploy to Staging server
-      #   if: ${{ github.event_name == 'push' }}
-      #   uses: easingthemes/ssh-deploy@main
-      #   env:
-      #     SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
-      #     ARGS: "-rlgoDzvc -i"
-      #     REMOTE_USER: ${{ secrets.REMOTE_USER }}
-      #     TARGET: /mnt/wpp_event_volume
-      #     # EXCLUDE: "/dist/, /node_modules/"
-      #     SOURCE: '../../'
-      #     SCRIPT_AFTER: |
-      #       mv . ../../
+deploy:
+  needs:
+    - test
+  runs-on: ubuntu-22.04
+  steps:
+    - name: Build & Deploy
+      env:
+        PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        HOSTNAME: ${{secrets.REMOTE_HOST}}
+        USER_NAME: ${secrets.REMOTE_USER}
+
+      run: |
+        echo "$PRIVATE_KEY" > private_key && chmod 600 private_key
+        ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} '
+
+            # Now we have got the access of EC2 and we will start the deploy .
+            cd /mnt/wpp_event_volume &&
+            git checkout master &&
+            git pull &&
+            yarn'
+  # deploy:
+  # needs:
+  #   - test
+  # runs-on: ubuntu-22.04
+  # steps:
+  #   - uses: actions/checkout@v3
+  #     with:
+  #       ref: 'master'
+  # - uses: actions/setup-node@v3
+  #   with:
+  #     node-version: '16.18'
+  # - name: Install dependencies
+  #   run: yarn install --frozen-lockfile --immutable
+  # - name: Build
+  #   run: yarn build
+  # - name: Deploy to Staging server
+  #   if: ${{ github.event_name == 'push' }}
+  #   uses: easingthemes/ssh-deploy@main
+  #   env:
+  #     SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+  #     REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+  #     ARGS: "-rlgoDzvc -i"
+  #     REMOTE_USER: ${{ secrets.REMOTE_USER }}
+  #     TARGET: /mnt/wpp_event_volume
+  #     # EXCLUDE: "/dist/, /node_modules/"
+  #     SOURCE: '../../'
+  #     SCRIPT_AFTER: |
+  #       mv . ../../
