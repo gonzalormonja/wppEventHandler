@@ -9,6 +9,13 @@ jobs:
   first_job:
     runs-on: ubuntu-22.04
     steps:
-      - name: Echo the message
-        run: |
-          echo "hello world"
+      - uses: actions/checkout@v3
+        with:
+          ref: 'master'
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16.18'
+      - name: Install dependencies
+        run: yarn
+      - name: Run lint
+        run: yarn lint
