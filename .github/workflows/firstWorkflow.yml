@@ -45,7 +45,7 @@ jobs:
         run: yarn install --immutable --immutable-cache --check-cache
       - name: Build
         run: yarn build
-      - name: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v2
         with:
           name: dist
           path: dist
@@ -62,7 +62,7 @@ jobs:
           node-version: '16.18'
       - name: Install dependencies
         run: yarn install --immutable --immutable-cache --check-cache
-      - name: actions/download-artifact@v2
+      - uses: actions/download-artifact@v2
         with:
           name: dist
           path: dist
