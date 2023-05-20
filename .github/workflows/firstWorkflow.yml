@@ -32,7 +32,7 @@ jobs:
           node-version: '16.18'
           cache: 'yarn'
       - name: Install dependencies
-        run: yarn install --frozen-lockfile --immutable --immutable-cache --check-cache
+        run: yarn install --frozen-lockfile --immutable
   lint:
     needs:
       - install_dependencies
@@ -46,7 +46,7 @@ jobs:
           node-version: '16.18'
           cache: 'yarn'
       - name: Install dependencies
-        run: yarn install --frozen-lockfile --immutable --immutable-cache --check-cache
+        run: yarn install --frozen-lockfile --immutable
       - name: Run lint
         run: yarn lint
   build:
@@ -62,7 +62,7 @@ jobs:
           node-version: '16.18'
           cache: 'yarn'
       - name: Install dependencies
-        run: yarn install --frozen-lockfile --immutable --immutable-cache --check-cache
+        run: yarn install --frozen-lockfile --immutable
       - name: Build
         run: yarn build
       - uses: actions/upload-artifact@v2
@@ -82,7 +82,7 @@ jobs:
           node-version: '16.18'
           cache: 'yarn'
       - name: Install dependencies
-        run: yarn install --frozen-lockfile --immutable --immutable-cache --check-cache
+        run: yarn install --frozen-lockfile --immutable
       - uses: actions/download-artifact@v2
         with:
           name: dist
