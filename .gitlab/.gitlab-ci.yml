@@ -1,0 +1,52 @@
+.only_run_when_push_or_mr_main:
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main") || ($CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main")
+.only_run_when_push_main:
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main")
+
+    
+stages:
+  - test
+  - build
+  - deploy
+
+test:
+  interruptible: true
+  stage: test
+  extends:
+    - .only_run_when_push_or_mr_main
+  image: node:16.18.0
+  before_script:
+    - apt update && yarn
+  script:
+    - yarn test
+
+lint:
+  interruptible: true
+  stage: test
+  extends:
+    - .only_run_when_push_or_mr_main
+  image: node:16.18.0
+  before_script:
+    - apt update && yarn
+  script:
+    - yarn lint
+
+
+deploy:
+  interruptible: true
+  stage: deploy
+  extends:
+    - .only_run_when_push_main
+  before_script:
+     - 'which ssh-agent || ( apk --update add openssh-client )'
+     - eval $(ssh-agent -s)
+     - mkdir -p ~/.ssh
+     - echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+     - chmod 700 ~/.ssh/id_rsa
+     - eval "$(ssh-agent -s)"
+     - ssh-add ~/.ssh/id_rsa
+     - '[[ -f /.dockerinit ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+  script:
+    - ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST 'cd /mnt/cicd-practices && git config --global --add safe.directory /mnt/cicd-practices &&  git checkout main && git reset --hard && git pull'
