@@ -8,6 +8,7 @@ import { UserModule } from '../user/user.module';
 import { AdminModule } from '../admin/admin.module';
 import { TypeEventModule } from '../type-event/type-event.module';
 import { GetEventModule } from '../get-event/get-event.module';
+import { WppHandlerFoodService } from './wpp-handler-food.service';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { GetEventModule } from '../get-event/get-event.module';
     GetEventModule,
     AdminModule,
   ],
-  providers: [WppHandlerService, WppHandlerController],
+  providers: [WppHandlerService, WppHandlerFoodService, WppHandlerController],
   controllers: [WppHandlerController],
 })
 export class WppHandlerModule {
