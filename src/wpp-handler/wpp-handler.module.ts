@@ -26,6 +26,6 @@ import { WppHandlerFoodService } from './wpp-handler-food.service';
 })
 export class WppHandlerModule {
   constructor(private readonly wppHandlerController: WppHandlerController) {
-    // this.wppHandlerController.startWpp();
+    this.wppHandlerController.startWpp();
   }
 }

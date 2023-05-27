@@ -1,19 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DateTime } from 'luxon';
-import { AdminService } from '../admin/admin.service';
-import { AvailabilityService } from '../availability/availability.service';
-import { CalendarService } from '../calendar/calendar.service';
-import { Calendar } from '../entities/calendar.entity';
-import { TypeEvent } from '../entities/type-event.entity';
-import { User } from '../entities/user.entity';
-import { EventService } from '../event/event.service';
-import { GetEventService } from '../get-event/get-event.service';
-import { TypeEventService } from '../type-event/type-event.service';
-import { UserService } from '../user/user.service';
-import convertMinuteToHour from '../utils/convert-minute-to-hour';
-import datesRegExp from '../utils/dates-reg-exp';
-import { Admin } from 'src/entities/admin.entity';
-import { v4 as uuidv4 } from 'uuid';
 
 interface Callback {
   message: string;
@@ -21,7 +7,7 @@ interface Callback {
 }
 
 interface Step {
-  message: string;
+  message: string[];
   callback?: (params: Callback) => Step;
   fallback?: () => Step;
 }
@@ -66,14 +52,15 @@ export class WppHandlerFoodService {
 
   private principalFlow(): Step {
     return {
-      message: `¡Hola! ¿Cómo estás? Soy un asistente virtual, me pusieron a cargo de las conversaciones ya que el resto de mis compañeros humanos están trabajando en otras actividades.
-
-  Te voy a ofrecer diferentes opciones para poder ayudarte mejor.
-  1. Hacer un pedido
-  2. Hacer una reserva
-  3. Ver el menú
-  4. Soporte al cliente
-  5. Dejar un comentario o sugerencia`,
+      message: [
+        `¡Hola! ¿Cómo estás? Soy un asistente virtual, me pusieron a cargo de las conversaciones ya que el resto de mis compañeros humanos están trabajando en otras actividades. Te voy a ofrecer diferentes opciones para poder ayudarte mejor.`,
+        ``,
+        `1. Hacer un pedido`,
+        `2. Hacer una reserva`,
+        `3. Ver el menú`,
+        `4. Soporte al cliente`,
+        `5. Dejar un comentario o sugerencia`,
+      ],
       callback: ({ message, fallback }) => {
         const steps = {
           '1': this.takeOrderCategory(),
@@ -88,11 +75,15 @@ export class WppHandlerFoodService {
 
   private takeOrderCategory(): Step {
     return {
-      message: `¡Excelente! Aquí tienes las categorías de nuestro menú, ¿qué te gustaría pedir hoy?
-
-  ${this.categories.map((category, index) => `${index + 1}. ${category.name}`)}
-  ${this.categories.length + 1}. Volver al menú anterior
-  ${this.categories.length + 2}. Volver al menú principal`,
+      message: [
+        `¡Excelente! Aquí tienes las categorías de nuestro menú, ¿qué te gustaría pedir hoy?`,
+        ``,
+        ...this.categories.map(
+          (category, index) => `${index + 1}. ${category.name}`,
+        ),
+        `${this.categories.length + 1}. Volver al menú anterior`,
+        `${this.categories.length + 2}. Volver al menú principal`,
+      ],
       callback: ({ message, fallback }) => {
         try {
           const categories = this.categories.map((cat) => cat.id);
@@ -104,11 +95,7 @@ export class WppHandlerFoodService {
             (category) => category.id === parseInt(message),
           );
           if (!category) fallback();
-          this.updateMemory({
-            ...this.memoryStatus,
-            buffer: { ...this.memoryStatus.buffer, categoryId: category.id },
-          });
-          return this.takeOrderMenu();
+          return this.takeOrderMenu(category);
         } catch (e) {
           return fallback();
         }
@@ -116,18 +103,21 @@ export class WppHandlerFoodService {
     };
   }
 
-  private takeOrderMenu(): Step {
-    const { category } = this.memoryStatus.buffer;
+  private takeOrderMenu(category): Step {
+    this.updateMemory({
+      ...this.memoryStatus,
+      buffer: { ...this.memoryStatus.buffer, categoryId: category.id },
+    });
     return {
-      message: `Aquí están nuestros platos de la categoria ${
-        category.name
-      } ¿Qué te gustaría pedir?:
-
-      ${category.menus.map(
-        (menu, index) => `${index + 1}. ${menu.name} - ${menu.price}`,
-      )}
-      ${category.menus.length + 1}. Volver al menú anterior
-      ${category.menus.length + 2}. Volver al menú principal`,
+      message: [
+        `Aquí están nuestros platos de la categoria ${category.name} ¿Qué te gustaría pedir?:`,
+        ``,
+        ...category.menus.map(
+          (menu, index) => `${index + 1}. ${menu.name} - $${menu.price}`,
+        ),
+        `${category.menus.length + 1}. Volver al menú anterior`,
+        `${category.menus.length + 2}. Volver al menú principal`,
+      ],
       callback: ({ message, fallback }) => {
         try {
           const { categoryId } = this.memoryStatus.buffer;
@@ -158,16 +148,16 @@ export class WppHandlerFoodService {
       },
     });
     return {
-      message: `Perfecto, añadiremos una ${
-        menu.name
-      } a tu pedido. ¿Te gustaría agregar algo más a tu pedido?:
-      ${this.categories.map(
-        (category, index) => `${index + 1}. ${category.name}`,
-      )}
-      
-      ${this.categories.length + 1}. Finalizar pedido
-      ${this.categories.length + 2}. Volver al menú anterior
-      ${this.categories.length + 3}. Volver al menú principal`,
+      message: [
+        `Perfecto, añadiremos una ${menu.name} a tu pedido. ¿Te gustaría agregar algo más a tu pedido?:`,
+        ``,
+        ...this.categories.map(
+          (category, index) => `${index + 1}. ${category.name}`,
+        ),
+        `${this.categories.length + 1}. Finalizar pedido`,
+        `${this.categories.length + 2}. Volver al menú anterior`,
+        `${this.categories.length + 3}. Volver al menú principal`,
+      ],
       callback: ({ message, fallback }) => {
         try {
           const categories = this.categories.map((cat) => cat.id);
@@ -181,11 +171,7 @@ export class WppHandlerFoodService {
             (category) => category.id === parseInt(message),
           );
           if (!category) fallback();
-          this.updateMemory({
-            ...this.memoryStatus,
-            buffer: { ...this.memoryStatus.buffer, categoryId: category.id },
-          });
-          return this.takeOrderMenu();
+          return this.takeOrderMenu(category);
         } catch (e) {
           return fallback();
         }
@@ -194,12 +180,14 @@ export class WppHandlerFoodService {
   }
   private takeOrderDelivery(): Step {
     return {
-      message: `¡Excelente! ¿Dónde te gustaría recibir tu pedido?
-
-      1. Recoger en el local
-      2. Entrega a domicilio
-      3. Volver al menú anterior
-      4. Volver al menú principal`,
+      message: [
+        `¡Excelente! ¿Dónde te gustaría recibir tu pedido?`,
+        ``,
+        `1. Recoger en el local`,
+        `2. Entrega a domicilio`,
+        `3. Volver al menú anterior`,
+        `4. Volver al menú principal`,
+      ],
       callback: ({ message, fallback }) => {
         try {
           const steps = {
@@ -219,21 +207,25 @@ export class WppHandlerFoodService {
 
   private takeOrderHomeDelivery() {
     return {
-      message: `Perfecto, tu pedido será entregado a tu domicilio. Por favor, proporciona la siguiente información para completar tu pedido:
-      Dirección de entrega (nombre de calle, altura y número de dpto)
-
-      1. Volver al menú anterior
-      2. Volver al menú principal`,
+      message: [
+        `Perfecto, tu pedido será entregado a tu domicilio. Por favor, proporciona la siguiente información para completar tu pedido:`,
+        `Dirección de entrega (nombre de calle, altura y número de dpto)`,
+        ``,
+        `1. Volver al menú anterior`,
+        `2. Volver al menú principal`,
+      ],
       callback: ({ message, fallback }) => {
         try {
           return {
-            message: `¡Gracias! Tu pedido será entregado a *${message}, Paraná, Argentina*. ¿Hay algo más en lo que pueda ayudarte hoy?
-
-        1. Hacer un pedido
-        2. Hacer una reserva
-        3. Ver el menú
-        4. Soporte al cliente
-        5. Dejar un comentario o sugerencia`,
+            message: [
+              `¡Gracias! Tu pedido será entregado a *${message}, Paraná, Argentina*. ¿Hay algo más en lo que pueda ayudarte hoy?`,
+              ``,
+              `1. Hacer un pedido`,
+              `2. Hacer una reserva`,
+              `3. Ver el menú`,
+              `4. Soporte al cliente`,
+              `5. Dejar un comentario o sugerencia`,
+            ],
             callback: ({ message, fallback }) => {
               const steps = {
                 '1': this.takeOrderCategory(),
@@ -253,21 +245,24 @@ export class WppHandlerFoodService {
 
   private takeOrderLocalPickUp() {
     return {
-      message: `Perfecto, te esperamos en nuestro local (San martin 420, Paraná, Argentina):
-          Dirección de entrega (nombre de calle, altura y número de dpto)
-    
-          1. Volver al menú anterior
-          2. Volver al menú principal`,
+      message: [
+        `Perfecto, te esperamos en nuestro local (San martin 420, Paraná, Argentina):`,
+        ``,
+        `1. Volver al menú anterior`,
+        `2. Volver al menú principal`,
+      ],
       callback: ({ message, fallback }) => {
         try {
           return {
-            message: `¡Gracias! Tu pedido será entregado a ${message}, Paraná, Argentina. ¿Hay algo más en lo que pueda ayudarte hoy?
-
-            1. Hacer otro pedido
-            2. Hacer una reserva
-            3. Ver el menú
-            4. Soporte al cliente
-            5. Dejar un comentario o sugerencia`,
+            message: [
+              `¡Gracias! Tu pedido será entregado a ${message}, Paraná, Argentina. ¿Hay algo más en lo que pueda ayudarte hoy?`,
+              ``,
+              `1. Hacer otro pedido`,
+              `2. Hacer una reserva`,
+              `3. Ver el menú`,
+              `4. Soporte al cliente`,
+              `5. Dejar un comentario o sugerencia`,
+            ],
             callback: ({ message, fallback }) => {
               const steps = {
                 '1': this.takeOrderCategory(),
@@ -287,10 +282,12 @@ export class WppHandlerFoodService {
 
   private bookingDate(): Step {
     return {
-      message: `¡Excelente! Estaré encantado de ayudarte a hacer una reserva. Por favor, proporciona la fecha y hora de la reserva (17/02/2022 15:30)    
-
-          1. Volver al menú anterior
-          2. Volver al menú principal`,
+      message: [
+        `¡Excelente! Estaré encantado de ayudarte a hacer una reserva. Por favor, proporciona la fecha y hora de la reserva (17/02/2022 15:30)`,
+        ``,
+        `1. Volver al menú anterior`,
+        `2. Volver al menú principal`,
+      ],
       callback: ({ message, fallback }) => {
         try {
           const steps = {
@@ -298,14 +295,9 @@ export class WppHandlerFoodService {
             '2': this.principalFlow(),
           };
           if (steps[message]) return steps[message];
-          this.updateMemory({
-            ...this.memoryStatus,
-            buffer: {
-              ...this.memoryStatus.buffer,
-              date: DateTime.fromFormat(message, 'dd/MM/yyyy HH:mm'),
-            },
-          });
-          return this.bookingNumerOfPeople();
+          return this.bookingNumerOfPeople(
+            DateTime.fromFormat(message, 'dd/MM/yyyy HH:mm'),
+          );
         } catch (e) {
           return fallback();
         }
@@ -313,11 +305,20 @@ export class WppHandlerFoodService {
     };
   }
 
-  private bookingNumerOfPeople(): Step {
+  private bookingNumerOfPeople(date: DateTime): Step {
+    this.updateMemory({
+      ...this.memoryStatus,
+      buffer: {
+        ...this.memoryStatus.buffer,
+        date,
+      },
+    });
     return {
-      message: `¡Excelente! ¿Para cuantas personas es la reservación?  
-        
-          0. Volver al menú anterior`,
+      message: [
+        `¡Excelente! ¿Para cuantas personas es la reservación?`,
+        ``,
+        `0. Volver al menú anterior`,
+      ],
       callback: ({ message, fallback }) => {
         try {
           const steps = {
@@ -337,15 +338,17 @@ export class WppHandlerFoodService {
 
   private bookingSave(date: DateTime, numberOfPeople: number): Step {
     return {
-      message: `!Perfecto! Tengo tu reserva para el dia ${date.toFormat(
-        'dd/MM/yyyy HH:mm',
-      )} para ${numberOfPeople} persona${numberOfPeople > 1 && 's'}
-
-      1. Hacer otro pedido
-      2. Hacer una reserva
-      3. Ver el menú
-      4. Soporte al cliente
-      5. Dejar un comentario o sugerencia`,
+      message: [
+        `!Perfecto! Tengo tu reserva para el dia ${date.toFormat(
+          'dd/MM/yyyy HH:mm',
+        )} para ${numberOfPeople} persona${numberOfPeople > 1 && 's'}`,
+        ``,
+        `1. Hacer otro pedido`,
+        `2. Hacer una reserva`,
+        `3. Ver el menú`,
+        `4. Soporte al cliente`,
+        `5. Dejar un comentario o sugerencia`,
+      ],
       callback: ({ message, fallback }) => {
         const steps = {
           '1': this.takeOrderCategory(),
@@ -360,17 +363,19 @@ export class WppHandlerFoodService {
 
   private getMenu(): Step {
     return {
-      message: `Este es nuestro menu:
-      ${this.categories.map(
-        (category) => `*${category.name}*:
-        ${category.menus.map((menu) => `${menu.name} - ${menu.price}\n`)}`,
-      )}
-
-      1. Hacer otro pedido
-      2. Hacer una reserva
-      3. Ver el menú
-      4. Soporte al cliente
-      5. Dejar un comentario o sugerencia`,
+      message: [
+        `Este es nuestro menu:`,
+        ...this.categories.map(
+          (category) => `*${category.name}*:
+        ${category.menus.map((menu) => `${menu.name} - $${menu.price}`)}`,
+        ),
+        ``,
+        `1. Hacer otro pedido`,
+        `2. Hacer una reserva`,
+        `3. Ver el menú`,
+        `4. Soporte al cliente`,
+        `5. Dejar un comentario o sugerencia`,
+      ],
       callback: ({ message, fallback }) => {
         const steps = {
           '1': this.takeOrderCategory(),
@@ -422,7 +427,7 @@ export class WppHandlerFoodService {
       this.updateMemory({ ...this.memoryStatus, currentStep: step });
     }
 
-    if (step) return [step.message];
+    if (step) return [step.message.join('\n')];
 
     this.removeMemory(this.memoryStatus);
     return ['Algo salio mal'];
